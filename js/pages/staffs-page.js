@@ -743,7 +743,7 @@ document.querySelectorAll(".allowance-checkbox:checked").forEach(cb => {
   const allowance = this.allowances.find(a => a.id === allowanceId);
   if (!allowance) return;
 
-  if (allowance.is_percentage === 1) {
+  if (Number(allowance.is_percentage) === 1 || allowance.is_percentage === true) {
     selectedAllowances.push({
       id: allowanceId,
       amount: allowance.default_amount, // % value
@@ -773,7 +773,7 @@ document.querySelectorAll(".allowance-checkbox:checked").forEach(cb => {
 			const deductionId = Number.parseInt(cb.value);
 			const deduction = this.deductions.find((d) => d.id === deductionId);
 
-			if (deduction && deduction.is_percentage === 1) {
+			if (deduction && (Number(deduction.is_percentage) === 1 || deduction.is_percentage === true)) {
 				selectedDeductions.push({
 					id: deductionId,
 					amount: deduction.default_amount,

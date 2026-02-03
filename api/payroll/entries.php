@@ -118,7 +118,8 @@ try {
         // Get current currency rate
         $rateQuery = "SELECT rate FROM currency_rates WHERE is_active = 1 LIMIT 1";
         $rateStmt = $db->query($rateQuery);
-        $currencyRate = $rateStmt->fetch()['rate'] ?? 1.0;
+        $rateData = $rateStmt->fetch();
+        $currencyRate = ($rateData !== false && isset($rateData['rate'])) ? (float)$rateData['rate'] : 1.0;
         
         // Calculate totals
         $basicSalary = $data->basic_salary;
@@ -268,7 +269,8 @@ try {
         // Get current currency rate
         $rateQuery = "SELECT rate FROM currency_rates WHERE is_active = 1 LIMIT 1";
         $rateStmt = $db->query($rateQuery);
-        $currencyRate = $rateStmt->fetch()['rate'] ?? 1.0;
+        $rateData = $rateStmt->fetch();
+        $currencyRate = ($rateData !== false && isset($rateData['rate'])) ? (float)$rateData['rate'] : 1.0;
         
         // Calculate totals
         $basicSalary = $data->basic_salary;

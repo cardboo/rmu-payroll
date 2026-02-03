@@ -67,7 +67,8 @@ try {
             
             $rateQuery = "SELECT rate FROM currency_rates WHERE is_active = 1 LIMIT 1";
             $rateStmt = $db->query($rateQuery);
-            $currencyRate = $rateStmt->fetch()['rate'] ?? 1.0;
+            $rateData = $rateStmt->fetch();
+            $currencyRate = ($rateData !== false && isset($rateData['rate'])) ? (float)$rateData['rate'] : 1.0;
             
             http_response_code(200);
             echo json_encode([

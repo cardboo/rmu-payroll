@@ -413,6 +413,40 @@ tr:hover {
 	color: #1e40af;
 }
 
+.badge-secondary {
+	background-color: #e5e7eb;
+	color: #374151;
+}
+
+.badge-info {
+	background-color: #e0f2fe;
+	color: #0369a1;
+}
+
+/* Step indicator for multi-step forms */
+.step-indicator {
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	background: #e0e0e0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-weight: 600;
+	color: #666;
+	transition: all 0.3s ease;
+}
+
+.step-indicator.active {
+	background: var(--primary);
+	color: white;
+}
+
+.step-indicator.completed {
+	background: #10b981;
+	color: white;
+}
+
 .action-buttons {
 	display: flex;
 	gap: 8px;

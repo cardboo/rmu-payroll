@@ -1003,7 +1003,7 @@ function setupPayrollEventListeners(payrollManager) {
 
 				// Get payroll period
 				const periods = await window.ApiService.get(window.API_ENDPOINTS.PAYROLL_PERIODS);
-				const period = periods.data.find((p) => p.month == month && p.year == year);
+				const period = periods.data.find((p) => Number(p.month) === Number(month) && Number(p.year) === Number(year));
 
 				if (!period) {
 					alert("Payroll period not found");
