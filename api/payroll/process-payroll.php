@@ -6,6 +6,7 @@ include_once '../config/error-logger.php';
 
 try {
     $user = authenticate();
+    requireAdmin($user);  // Only admins can view payroll data
 
     $database = new Database();
     $db = $database->getConnection();
@@ -14,8 +15,8 @@ try {
 
     // GET - List all staffs for process payroll with optional department filter
     if ($method === 'GET') {
-        $query = "SELECT s.id, s.staff_number, s.first_name, s.last_name, s.basic_salary, s.salary_currency, 
-                  s.status, d.department_name, des.designation_name, s.on_bonded_or_study_leave
+        $query = "SELECT s.id, s.staff_number, s.first_name, s.last_name, s.basic_salary, s.salary_currency,
+                  s.status, s.bonded, d.department_name, des.designation_name
                   FROM staffs s
                   LEFT JOIN departments d ON s.department_id = d.id
                   LEFT JOIN designations des ON s.designation_id = des.id

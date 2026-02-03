@@ -6,6 +6,7 @@ include_once '../config/error-logger.php';
 
 try {
     $user = authenticate();
+
     $database = new Database();
     $db = $database->getConnection();
 
@@ -13,6 +14,12 @@ try {
 
     if ($method === 'GET') {
         $type = isset($_GET['type']) ? $_GET['type'] : 'dashboard';
+
+        // Reports with sensitive payroll data require admin access
+        $adminOnlyReports = ['payroll_summary', 'department_payroll', 'yearly_comparison', 'staff_history', 'allowances_deductions'];
+        if (in_array($type, $adminOnlyReports, true)) {
+            requireAdmin($user);
+        }
         
         if ($type === 'dashboard') {
             // Get dashboard statistics

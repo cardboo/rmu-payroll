@@ -150,41 +150,45 @@ try {
         $grossSalary = $basicSalary + $totalAllowances;
         $netSalary = $grossSalary - $totalDeductions;
         $netSalaryGHS = $netSalary * $currencyRate;
-        
-        // Insert payroll entry
-        $query = "INSERT INTO payroll_entries 
-                  (payroll_period_id, staff_id, basic_salary, total_allowances, total_deductions, 
-                   gross_salary, net_salary, currency_rate, net_salary_ghs, created_by) 
-                  VALUES (:period_id, :staff_id, :basic_salary, :total_allowances, :total_deductions, 
-                          :gross_salary, :net_salary, :currency_rate, :net_salary_ghs, :created_by)";
-        $stmt = $db->prepare($query);
-        
-        $stmt->bindParam(':period_id', $data->payroll_period_id);
-        $stmt->bindParam(':staff_id', $data->staff_id);
-        $stmt->bindParam(':basic_salary', $basicSalary);
-        $stmt->bindParam(':total_allowances', $totalAllowances);
-        $stmt->bindParam(':total_deductions', $totalDeductions);
-        $stmt->bindParam(':gross_salary', $grossSalary);
-        $stmt->bindParam(':net_salary', $netSalary);
-        $stmt->bindParam(':currency_rate', $currencyRate);
-        $stmt->bindParam(':net_salary_ghs', $netSalaryGHS);
-        $stmt->bindParam(':created_by', $user->user_id);
-        
-        if ($stmt->execute()) {
+
+        // Use transaction to ensure data consistency
+        $db->beginTransaction();
+
+        try {
+            // Insert payroll entry
+            $query = "INSERT INTO payroll_entries
+                      (payroll_period_id, staff_id, basic_salary, total_allowances, total_deductions,
+                       gross_salary, net_salary, currency_rate, net_salary_ghs, created_by)
+                      VALUES (:period_id, :staff_id, :basic_salary, :total_allowances, :total_deductions,
+                              :gross_salary, :net_salary, :currency_rate, :net_salary_ghs, :created_by)";
+            $stmt = $db->prepare($query);
+
+            $stmt->bindParam(':period_id', $data->payroll_period_id);
+            $stmt->bindParam(':staff_id', $data->staff_id);
+            $stmt->bindParam(':basic_salary', $basicSalary);
+            $stmt->bindParam(':total_allowances', $totalAllowances);
+            $stmt->bindParam(':total_deductions', $totalDeductions);
+            $stmt->bindParam(':gross_salary', $grossSalary);
+            $stmt->bindParam(':net_salary', $netSalary);
+            $stmt->bindParam(':currency_rate', $currencyRate);
+            $stmt->bindParam(':net_salary_ghs', $netSalaryGHS);
+            $stmt->bindParam(':created_by', $user->user_id);
+            $stmt->execute();
+
             $entryId = $db->lastInsertId();
-            
+
             // Insert allowances
             if (isset($data->allowances) && is_array($data->allowances)) {
-                $allowQuery = "INSERT INTO payroll_allowances 
-                              (payroll_entry_id, allowance_id, amount, is_percentage, percentage_value) 
+                $allowQuery = "INSERT INTO payroll_allowances
+                              (payroll_entry_id, allowance_id, amount, is_percentage, percentage_value)
                               VALUES (:entry_id, :allowance_id, :amount, :is_percentage, :percentage_value)";
                 $allowStmt = $db->prepare($allowQuery);
-                
+
                 foreach ($data->allowances as $allowance) {
-                    $amount = $allowance->is_percentage 
-                        ? ($basicSalary * $allowance->percentage_value / 100) 
+                    $amount = $allowance->is_percentage
+                        ? ($basicSalary * $allowance->percentage_value / 100)
                         : $allowance->amount;
-                    
+
                     $allowStmt->bindParam(':entry_id', $entryId);
                     $allowStmt->bindParam(':allowance_id', $allowance->allowance_id);
                     $allowStmt->bindParam(':amount', $amount);
@@ -193,19 +197,19 @@ try {
                     $allowStmt->execute();
                 }
             }
-            
+
             // Insert deductions
             if (isset($data->deductions) && is_array($data->deductions)) {
-                $deductQuery = "INSERT INTO payroll_deductions 
-                               (payroll_entry_id, deduction_id, amount, is_percentage, percentage_value) 
+                $deductQuery = "INSERT INTO payroll_deductions
+                               (payroll_entry_id, deduction_id, amount, is_percentage, percentage_value)
                                VALUES (:entry_id, :deduction_id, :amount, :is_percentage, :percentage_value)";
                 $deductStmt = $db->prepare($deductQuery);
-                
+
                 foreach ($data->deductions as $deduction) {
-                    $amount = $deduction->is_percentage 
-                        ? ($basicSalary * $deduction->percentage_value / 100) 
+                    $amount = $deduction->is_percentage
+                        ? ($basicSalary * $deduction->percentage_value / 100)
                         : $deduction->amount;
-                    
+
                     $deductStmt->bindParam(':entry_id', $entryId);
                     $deductStmt->bindParam(':deduction_id', $deduction->deduction_id);
                     $deductStmt->bindParam(':amount', $amount);
@@ -214,15 +218,17 @@ try {
                     $deductStmt->execute();
                 }
             }
-            
+
             // Log action
-            $logQuery = "INSERT INTO audit_logs (user_id, action, table_name, record_id) 
+            $logQuery = "INSERT INTO audit_logs (user_id, action, table_name, record_id)
                          VALUES (:user_id, 'CREATE', 'payroll_entries', :record_id)";
             $logStmt = $db->prepare($logQuery);
             $logStmt->bindParam(':user_id', $user->user_id);
             $logStmt->bindParam(':record_id', $entryId);
             $logStmt->execute();
-            
+
+            $db->commit();
+
             http_response_code(201);
             echo json_encode([
                 'success' => true,
@@ -238,12 +244,9 @@ try {
                     'currency_rate' => $currencyRate
                 ]
             ]);
-        } else {
-            http_response_code(500);
-            echo json_encode([
-                'success' => false,
-                'message' => 'Failed to create payroll entry'
-            ]);
+        } catch (Exception $e) {
+            $db->rollBack();
+            throw $e;
         }
     }
 
@@ -297,45 +300,49 @@ try {
         $grossSalary = $basicSalary + $totalAllowances;
         $netSalary = $grossSalary - $totalDeductions;
         $netSalaryGHS = $netSalary * $currencyRate;
-        
-        // Update payroll entry
-        $query = "UPDATE payroll_entries SET 
-                  basic_salary = :basic_salary,
-                  total_allowances = :total_allowances,
-                  total_deductions = :total_deductions,
-                  gross_salary = :gross_salary,
-                  net_salary = :net_salary,
-                  currency_rate = :currency_rate,
-                  net_salary_ghs = :net_salary_ghs
-                  WHERE id = :id";
-        $stmt = $db->prepare($query);
-        
-        $stmt->bindParam(':id', $data->id);
-        $stmt->bindParam(':basic_salary', $basicSalary);
-        $stmt->bindParam(':total_allowances', $totalAllowances);
-        $stmt->bindParam(':total_deductions', $totalDeductions);
-        $stmt->bindParam(':gross_salary', $grossSalary);
-        $stmt->bindParam(':net_salary', $netSalary);
-        $stmt->bindParam(':currency_rate', $currencyRate);
-        $stmt->bindParam(':net_salary_ghs', $netSalaryGHS);
-        
-        if ($stmt->execute()) {
+
+        // Use transaction to ensure data consistency
+        $db->beginTransaction();
+
+        try {
+            // Update payroll entry
+            $query = "UPDATE payroll_entries SET
+                      basic_salary = :basic_salary,
+                      total_allowances = :total_allowances,
+                      total_deductions = :total_deductions,
+                      gross_salary = :gross_salary,
+                      net_salary = :net_salary,
+                      currency_rate = :currency_rate,
+                      net_salary_ghs = :net_salary_ghs
+                      WHERE id = :id";
+            $stmt = $db->prepare($query);
+
+            $stmt->bindParam(':id', $data->id);
+            $stmt->bindParam(':basic_salary', $basicSalary);
+            $stmt->bindParam(':total_allowances', $totalAllowances);
+            $stmt->bindParam(':total_deductions', $totalDeductions);
+            $stmt->bindParam(':gross_salary', $grossSalary);
+            $stmt->bindParam(':net_salary', $netSalary);
+            $stmt->bindParam(':currency_rate', $currencyRate);
+            $stmt->bindParam(':net_salary_ghs', $netSalaryGHS);
+            $stmt->execute();
+
             // Delete existing allowances and deductions
             $db->prepare("DELETE FROM payroll_allowances WHERE payroll_entry_id = :id")->execute([':id' => $data->id]);
             $db->prepare("DELETE FROM payroll_deductions WHERE payroll_entry_id = :id")->execute([':id' => $data->id]);
-            
+
             // Insert new allowances
             if (isset($data->allowances) && is_array($data->allowances)) {
-                $allowQuery = "INSERT INTO payroll_allowances 
-                              (payroll_entry_id, allowance_id, amount, is_percentage, percentage_value) 
+                $allowQuery = "INSERT INTO payroll_allowances
+                              (payroll_entry_id, allowance_id, amount, is_percentage, percentage_value)
                               VALUES (:entry_id, :allowance_id, :amount, :is_percentage, :percentage_value)";
                 $allowStmt = $db->prepare($allowQuery);
-                
+
                 foreach ($data->allowances as $allowance) {
-                    $amount = $allowance->is_percentage 
-                        ? ($basicSalary * $allowance->percentage_value / 100) 
+                    $amount = $allowance->is_percentage
+                        ? ($basicSalary * $allowance->percentage_value / 100)
                         : $allowance->amount;
-                    
+
                     $allowStmt->bindParam(':entry_id', $data->id);
                     $allowStmt->bindParam(':allowance_id', $allowance->allowance_id);
                     $allowStmt->bindParam(':amount', $amount);
@@ -344,19 +351,19 @@ try {
                     $allowStmt->execute();
                 }
             }
-            
+
             // Insert new deductions
             if (isset($data->deductions) && is_array($data->deductions)) {
-                $deductQuery = "INSERT INTO payroll_deductions 
-                               (payroll_entry_id, deduction_id, amount, is_percentage, percentage_value) 
+                $deductQuery = "INSERT INTO payroll_deductions
+                               (payroll_entry_id, deduction_id, amount, is_percentage, percentage_value)
                                VALUES (:entry_id, :deduction_id, :amount, :is_percentage, :percentage_value)";
                 $deductStmt = $db->prepare($deductQuery);
-                
+
                 foreach ($data->deductions as $deduction) {
-                    $amount = $deduction->is_percentage 
-                        ? ($basicSalary * $deduction->percentage_value / 100) 
+                    $amount = $deduction->is_percentage
+                        ? ($basicSalary * $deduction->percentage_value / 100)
                         : $deduction->amount;
-                    
+
                     $deductStmt->bindParam(':entry_id', $data->id);
                     $deductStmt->bindParam(':deduction_id', $deduction->deduction_id);
                     $deductStmt->bindParam(':amount', $amount);
@@ -365,15 +372,17 @@ try {
                     $deductStmt->execute();
                 }
             }
-            
+
             // Log action
-            $logQuery = "INSERT INTO audit_logs (user_id, action, table_name, record_id) 
+            $logQuery = "INSERT INTO audit_logs (user_id, action, table_name, record_id)
                          VALUES (:user_id, 'UPDATE', 'payroll_entries', :record_id)";
             $logStmt = $db->prepare($logQuery);
             $logStmt->bindParam(':user_id', $user->user_id);
             $logStmt->bindParam(':record_id', $data->id);
             $logStmt->execute();
-            
+
+            $db->commit();
+
             http_response_code(200);
             echo json_encode([
                 'success' => true,
@@ -388,12 +397,9 @@ try {
                     'currency_rate' => $currencyRate
                 ]
             ]);
-        } else {
-            http_response_code(500);
-            echo json_encode([
-                'success' => false,
-                'message' => 'Failed to update payroll entry'
-            ]);
+        } catch (Exception $e) {
+            $db->rollBack();
+            throw $e;
         }
     }
 
