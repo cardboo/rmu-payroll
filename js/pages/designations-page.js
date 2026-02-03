@@ -54,18 +54,18 @@ class DesignationsPage {
           <div class="modal-body">
             <form id="designationForm">
               <div class="form-group">
-                <label>Designation Code *</label>
+                <label for="designationCode">Designation Code *</label>
                 <input type="text" id="designationCode" required placeholder="e.g., PROF, LECT">
               </div>
-              
+
               <div class="form-group">
-                <label>Designation Name *</label>
+                <label for="designationName">Designation Name *</label>
                 <input type="text" id="designationName" required placeholder="e.g., Professor, Lecturer">
               </div>
-              
+
               <div class="form-group">
-                <label>Description</label>
-                <textarea id="description" rows="3" placeholder="Optional description"></textarea>
+                <label for="desDescription">Description</label>
+                <textarea id="desDescription" rows="3" placeholder="Optional description"></textarea>
               </div>
             </form>
           </div>
@@ -179,7 +179,7 @@ class DesignationsPage {
 				designation.designation_code;
 			document.getElementById("designationName").value =
 				designation.designation_name;
-			document.getElementById("description").value =
+			document.getElementById("desDescription").value =
 				designation.description || "";
 		}
 
@@ -198,7 +198,7 @@ class DesignationsPage {
 		const designationName = document
 			.getElementById("designationName")
 			.value.trim();
-		const description = document.getElementById("description").value.trim();
+		const description = document.getElementById("desDescription").value.trim();
 
 		if (!designationCode || !designationName) {
 			this.crudManager.showMessage(

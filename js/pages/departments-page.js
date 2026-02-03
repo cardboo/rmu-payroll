@@ -60,17 +60,17 @@ class DepartmentsPage {
             <form id="departmentForm">
               <div class="form-row">
                 <div class="form-group">
-                  <label>Department Code *</label>
+                  <label for="departmentCode">Department Code *</label>
                   <input type="text" id="departmentCode" required placeholder="e.g., CS, ENG, HR">
                 </div>
                 <div class="form-group">
-                  <label>Department Name *</label>
+                  <label for="departmentName">Department Name *</label>
                   <input type="text" id="departmentName" required placeholder="e.g., Computer Science">
                 </div>
               </div>
-              
+
               <div class="form-group">
-                <label>Description</label>
+                <label for="description">Description</label>
                 <textarea id="description" rows="3" placeholder="Optional description"></textarea>
               </div>
             </form>

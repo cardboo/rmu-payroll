@@ -151,7 +151,7 @@ class AllowancesPage {
 			console.error("[v0] Error loading allowances:", error);
 			document.getElementById("allowances-tbody").innerHTML = `
         <tr>
-          <td colspan="7" class="error-message">Failed to load allowances. Please try again.</td>
+          <td colspan="8" class="error-message">Failed to load allowances. Please try again.</td>
         </tr>
       `;
 		}
@@ -163,7 +163,7 @@ class AllowancesPage {
 		if (allowances.length === 0) {
 			tbody.innerHTML = `
         <tr>
-          <td colspan="7" class="empty-state">
+          <td colspan="8" class="empty-state">
             <div class="empty-state-icon">📋</div>
             <div class="empty-state-text">No allowances found. Create your first allowance to get started.</div>
           </td>
