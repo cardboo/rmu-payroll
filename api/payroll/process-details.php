@@ -52,47 +52,52 @@ try {
             $basicSalaryLocal = $basicSalary;
         }
 
-        $allowanceQuery = "SELECT 
+        $allowanceQuery = "SELECT
                             a.id,
                             a.allowance_name,
-                            a.type,
+                            a.is_percentage,
                             a.default_amount,
-                            COALESCE(sa.custom_amount, a.default_amount) as amount,
+                            COALESCE(sa.amount, a.default_amount) as amount,
+                            sa.is_percentage as staff_is_percentage,
                             'assigned' as source
                           FROM allowances a
                           INNER JOIN staff_allowances sa ON a.id = sa.allowance_id
-                          WHERE sa.staff_id = :staff_id 
-                          AND a.is_archived = 0
-                          AND (a.allowed_on_leave = 1 OR :on_leave = 0)";
-        
+                          WHERE sa.staff_id = :staff_id
+                          AND a.is_archived = 0";
+
         $allowStmt = $db->prepare($allowanceQuery);
         $allowStmt->bindParam(':staff_id', $staffId);
-        $allowStmt->bindParam(':on_leave', $staff['on_bonded_or_study_leave']);
         $allowStmt->execute();
         $allowances = $allowStmt->fetchAll();
 
         // Calculate allowance amounts
         $totalAllowances = 0;
         foreach ($allowances as &$allowance) {
-            if ($allowance['type'] === 'percent') {
+            // Use staff-specific is_percentage if set, otherwise use allowance default
+            $isPercentage = $allowance['staff_is_percentage'] !== null
+                ? (bool)$allowance['staff_is_percentage']
+                : (bool)$allowance['is_percentage'];
+
+            if ($isPercentage) {
                 $allowance['calculated_amount'] = ($basicSalaryLocal * $allowance['amount']) / 100;
             } else {
-                $allowance['calculated_amount'] = $allowance['amount'];
+                $allowance['calculated_amount'] = (float)$allowance['amount'];
             }
             $totalAllowances += $allowance['calculated_amount'];
         }
 
-        $deductionQuery = "SELECT 
+        $deductionQuery = "SELECT
                             d.id,
                             d.deduction_name,
-                            d.type,
+                            d.is_percentage,
                             d.default_amount,
-                            COALESCE(sd.custom_amount, d.default_amount) as amount,
+                            COALESCE(sd.amount, d.default_amount) as amount,
+                            sd.is_percentage as staff_is_percentage,
                             'assigned' as source
                           FROM deductions d
                           INNER JOIN staff_deductions sd ON d.id = sd.deduction_id
                           WHERE sd.staff_id = :staff_id AND d.is_archived = 0";
-        
+
         $deductStmt = $db->prepare($deductionQuery);
         $deductStmt->bindParam(':staff_id', $staffId);
         $deductStmt->execute();
@@ -101,10 +106,15 @@ try {
         // Calculate deduction amounts
         $totalDeductions = 0;
         foreach ($deductions as &$deduction) {
-            if ($deduction['type'] === 'percent') {
+            // Use staff-specific is_percentage if set, otherwise use deduction default
+            $isPercentage = $deduction['staff_is_percentage'] !== null
+                ? (bool)$deduction['staff_is_percentage']
+                : (bool)$deduction['is_percentage'];
+
+            if ($isPercentage) {
                 $deduction['calculated_amount'] = ($basicSalaryLocal * $deduction['amount']) / 100;
             } else {
-                $deduction['calculated_amount'] = $deduction['amount'];
+                $deduction['calculated_amount'] = (float)$deduction['amount'];
             }
             $totalDeductions += $deduction['calculated_amount'];
         }

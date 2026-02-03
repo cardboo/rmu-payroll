@@ -668,8 +668,5 @@ class ProcessPayrollPage {
   }
 }
 
-// Initialize on page load
-window.addEventListener("DOMContentLoaded", () => {
-  window.processPayrollPage = new ProcessPayrollPage();
-  window.processPayrollPage.init();
-});
+// Export for use by dashboard.js router
+window.processPayrollPage = new ProcessPayrollPage();

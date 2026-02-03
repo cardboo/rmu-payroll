@@ -329,6 +329,5 @@ class DepartmentsPage {
 	}
 }
 
+// Export for use by dashboard.js router
 window.departmentsPage = new DepartmentsPage();
-window.document.getElementById("mainContent").innerHTML =
-	window.departmentsPage.render();

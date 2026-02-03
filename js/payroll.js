@@ -41,7 +41,7 @@ class PayrollManager {
 		}
 	}
 
-	calculatePayroll(basicSalary, allowances, deductions) {
+	calculatePayroll(basicSalary, allowances, deductions, salaryCurrency = 'USD') {
 		let totalAllowances = 0;
 		let totalDeductions = 0;
 
@@ -65,7 +65,11 @@ class PayrollManager {
 
 		const grossSalary = basicSalary + totalAllowances;
 		const netSalary = grossSalary - totalDeductions;
-		const netSalaryGHS = netSalary * this.currencyRate;
+
+		// Only convert to GHS if salary is in USD
+		const netSalaryGHS = salaryCurrency === 'USD'
+			? netSalary * this.currencyRate
+			: netSalary;
 
 		return {
 			basic_salary: basicSalary,
@@ -75,6 +79,7 @@ class PayrollManager {
 			net_salary: netSalary,
 			net_salary_ghs: netSalaryGHS,
 			currency_rate: this.currencyRate,
+			salary_currency: salaryCurrency,
 		};
 	}
 

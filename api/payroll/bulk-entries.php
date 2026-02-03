@@ -126,13 +126,12 @@ try {
             if ($existing) {
                 // Update existing entry
                 $updateStmt = $db->prepare("
-                    UPDATE payroll_entries 
+                    UPDATE payroll_entries
                     SET basic_salary = :basic_salary,
                         total_allowances = :total_allowances,
                         total_deductions = :total_deductions,
                         gross_salary = :gross_salary,
                         net_salary = :net_salary,
-                        updated_by = :updated_by,
                         updated_at = NOW()
                     WHERE id = :id
                 ");
@@ -142,15 +141,16 @@ try {
                     ':total_deductions' => $totalDeductions,
                     ':gross_salary' => $grossSalary,
                     ':net_salary' => $netSalary,
-                    ':updated_by' => $user->user_id,
                     ':id' => $existing['id']
                 ]);
                 $entryId = $existing['id'];
 
-                // for each payroll allowances for this entry, update payroll_allowances for this staff payroll_entry
+                // Delete existing allowances and deductions for this entry
+                $deleteAllowances = $db->prepare("DELETE FROM payroll_allowances WHERE payroll_entry_id = :entry_id");
+                $deleteAllowances->execute([':entry_id' => $entryId]);
 
-                // for each payroll allowances for this entry, update payroll_deductions for this staff payroll_entry
-
+                $deleteDeductions = $db->prepare("DELETE FROM payroll_deductions WHERE payroll_entry_id = :entry_id");
+                $deleteDeductions->execute([':entry_id' => $entryId]);
 
             } else {
                 // Create new entry
@@ -176,10 +176,54 @@ try {
                     ':created_by' => $user->user_id
                 ]);
                 $entryId = (int)$db->lastInsertId();
-                
-                // for each payroll allowances for this entry, insert payroll_allowances for this staff payroll_entry
+            }
 
-                // for each payroll allowances for this entry, insert payroll_deductions table for this staff payroll_entry
+            // Insert allowances for this payroll entry
+            if (!empty($allowances)) {
+                $insertAllowanceStmt = $db->prepare("
+                    INSERT INTO payroll_allowances (payroll_entry_id, allowance_id, amount, is_percentage, percentage_value)
+                    VALUES (:entry_id, :allowance_id, :amount, :is_percentage, :percentage_value)
+                ");
+
+                foreach ($allowances as $allowance) {
+                    $isPercentage = isset($allowance['is_percentage']) && $allowance['is_percentage'] ? 1 : 0;
+                    $percentageValue = $isPercentage ? ($allowance['percentage_value'] ?? $allowance['amount'] ?? 0) : null;
+                    $calculatedAmount = $isPercentage
+                        ? ($basicSalary * ($percentageValue ?? 0)) / 100
+                        : (float)($allowance['amount'] ?? 0);
+
+                    $insertAllowanceStmt->execute([
+                        ':entry_id' => $entryId,
+                        ':allowance_id' => (int)$allowance['allowance_id'],
+                        ':amount' => $calculatedAmount,
+                        ':is_percentage' => $isPercentage,
+                        ':percentage_value' => $percentageValue
+                    ]);
+                }
+            }
+
+            // Insert deductions for this payroll entry
+            if (!empty($deductions)) {
+                $insertDeductionStmt = $db->prepare("
+                    INSERT INTO payroll_deductions (payroll_entry_id, deduction_id, amount, is_percentage, percentage_value)
+                    VALUES (:entry_id, :deduction_id, :amount, :is_percentage, :percentage_value)
+                ");
+
+                foreach ($deductions as $deduction) {
+                    $isPercentage = isset($deduction['is_percentage']) && $deduction['is_percentage'] ? 1 : 0;
+                    $percentageValue = $isPercentage ? ($deduction['percentage_value'] ?? $deduction['amount'] ?? 0) : null;
+                    $calculatedAmount = $isPercentage
+                        ? ($basicSalary * ($percentageValue ?? 0)) / 100
+                        : (float)($deduction['amount'] ?? 0);
+
+                    $insertDeductionStmt->execute([
+                        ':entry_id' => $entryId,
+                        ':deduction_id' => (int)$deduction['deduction_id'],
+                        ':amount' => $calculatedAmount,
+                        ':is_percentage' => $isPercentage,
+                        ':percentage_value' => $percentageValue
+                    ]);
+                }
             }
 
             $results[] = [

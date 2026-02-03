@@ -1,13 +1,22 @@
 <?php
 include_once __DIR__ . '/error-logger.php';
+include_once __DIR__ . '/env.php';
 
 class Database
 {
-    private $host = "localhost";
-    private $db_name = "payroll_system";
-    private $username = "root";
-    private $password = "";
+    private $host;
+    private $db_name;
+    private $username;
+    private $password;
     private $conn;
+
+    public function __construct()
+    {
+        $this->host = DB_HOST;
+        $this->db_name = DB_NAME;
+        $this->username = DB_USERNAME;
+        $this->password = DB_PASSWORD;
+    }
 
     public function getConnection()
     {
@@ -24,9 +33,10 @@ class Database
         } catch (PDOException $e) {
             ErrorLogger::logDatabaseError($e, 'Database Connection');
 
+            http_response_code(500);
             echo json_encode([
                 'success' => false,
-                'message' => 'Connection Error: ' . $e->getMessage()
+                'message' => 'Database connection failed'
             ]);
             exit();
         }

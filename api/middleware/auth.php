@@ -1,6 +1,9 @@
 <?php
 header('Content-Type: application/json');
 
+// Include environment configuration
+include_once __DIR__ . '/../config/env.php';
+
 function authenticate()
 {
     $headers = getallheaders();
@@ -23,7 +26,8 @@ function authenticate()
         exit;
     }
 
-    $token = str_replace('Bearer ', '', $authHeader);
+    // Case-insensitive Bearer token extraction
+    $token = preg_replace('/^bearer\s+/i', '', $authHeader);
     $decoded = verifyToken($token);
 
     if (!$decoded) {
@@ -35,7 +39,6 @@ function authenticate()
         exit;
     }
 
-    // ✅ RETURN OBJECT (unchanged behaviour)
     return $decoded;
 }
 
@@ -51,6 +54,21 @@ function requireAdmin($user)
     }
 }
 
+/**
+ * Base64 URL decode (handles URL-safe base64)
+ */
+function base64UrlDecode($data)
+{
+    $padding = 4 - (strlen($data) % 4);
+    if ($padding !== 4) {
+        $data .= str_repeat('=', $padding);
+    }
+    return base64_decode(strtr($data, '-_', '+/'));
+}
+
+/**
+ * Verify JWT token with proper signature validation
+ */
 function verifyToken($token)
 {
     $parts = explode('.', $token);
@@ -58,11 +76,33 @@ function verifyToken($token)
         return false;
     }
 
-    $payload = json_decode(base64_decode($parts[1]));
+    list($header, $payload, $signature) = $parts;
 
-    if (!$payload || !isset($payload->exp) || $payload->exp < time()) {
+    // Verify signature
+    $expectedSignature = hash_hmac(
+        'sha256',
+        $header . '.' . $payload,
+        JWT_SECRET,
+        true
+    );
+    $expectedSignatureEncoded = rtrim(strtr(base64_encode($expectedSignature), '+/', '-_'), '=');
+
+    // Use hash_equals for timing-safe comparison
+    if (!hash_equals($expectedSignatureEncoded, $signature)) {
         return false;
     }
 
-    return $payload;
+    // Decode payload
+    $decodedPayload = json_decode(base64UrlDecode($payload));
+
+    if (!$decodedPayload) {
+        return false;
+    }
+
+    // Check expiration
+    if (!isset($decodedPayload->exp) || $decodedPayload->exp < time()) {
+        return false;
+    }
+
+    return $decodedPayload;
 }
