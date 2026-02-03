@@ -370,8 +370,8 @@ async function calculateBulkPayrollPreview(eligibleStaff, period) {
 			);
 
 			if (response.success && response.data) {
-				const allowances = response.data.allowances.filter((a) => a.is_applicable);
-				const deductions = response.data.deductions.filter((d) => d.is_applicable);
+				const allowances = (response.data.allowances || []).filter((a) => a.is_applicable);
+				const deductions = (response.data.deductions || []).filter((d) => d.is_applicable);
 				const currencyRate = response.data.currency_rate || 1;
 
 				// Calculate totals
@@ -700,12 +700,12 @@ function showStaffPayrollEditModal(staff, staffList, staffIndex) {
 
 	modal.style.display = "block";
 
-	// Close on outside click
-	window.onclick = (event) => {
-		if (event.target == modal) {
+	// Close on outside click - use event listener instead of overwriting window.onclick
+	modal.addEventListener("click", (event) => {
+		if (event.target === modal) {
 			modal.style.display = "none";
 		}
-	};
+	});
 }
 
 function showBulkConfirmationModal(staffList, period, month, year) {
@@ -838,12 +838,12 @@ function showBulkConfirmationModal(staffList, period, month, year) {
 		});
 	}, 10);
 
-	// Close on outside click
-	window.onclick = (event) => {
-		if (event.target == modal) {
+	// Close on outside click - use event listener instead of overwriting window.onclick
+	modal.addEventListener("click", (event) => {
+		if (event.target === modal) {
 			modal.style.display = "none";
 		}
-	};
+	});
 }
 
 async function processBulkPayroll(staffList, period) {
@@ -853,8 +853,8 @@ async function processBulkPayroll(staffList, period) {
 		const staffEntries = staffList.map((staff) => ({
 			staffId: staff.id,
 			basicSalary: staff.basicSalary,
-			allowances: staff.allowances.map((a) => a.id),
-			deductions: staff.deductions.map((d) => d.id),
+			allowances: (staff.allowances || []).map((a) => a.id),
+			deductions: (staff.deductions || []).map((d) => d.id),
 		}));
 
 		const result = await window.payrollManagerInstance.savePayrollEntriesBulk(
@@ -977,12 +977,12 @@ function showBulkResultsModal(result, period) {
 
 	modal.style.display = "block";
 
-	// Close on outside click
-	window.onclick = (event) => {
-		if (event.target == modal) {
+	// Close on outside click - use event listener instead of overwriting window.onclick
+	modal.addEventListener("click", (event) => {
+		if (event.target === modal) {
 			modal.style.display = "none";
 		}
-	};
+	});
 }
 
 function setupPayrollEventListeners(payrollManager) {
@@ -1548,7 +1548,7 @@ function displayAllowancesDeductions(data) {
             </thead>
             <tbody>
               ${
-                data.allowances.length > 0
+                (data.allowances || []).length > 0
                   ? data.allowances
                       .map(
                         (allow) => `
@@ -1556,7 +1556,7 @@ function displayAllowancesDeductions(data) {
                   <td>${allow.allowance_name}</td>
                   <td>${allow.usage_count}</td>
                   <td style="color: #10b981;"><strong>$${Number.parseFloat(
-                    allow.total_amount,
+                    allow.total_amount || 0,
                   ).toLocaleString()}</strong></td>
                 </tr>
               `,
@@ -1582,7 +1582,7 @@ function displayAllowancesDeductions(data) {
             </thead>
             <tbody>
               ${
-                data.deductions.length > 0
+                (data.deductions || []).length > 0
                   ? data.deductions
                       .map(
                         (deduct) => `
@@ -1590,7 +1590,7 @@ function displayAllowancesDeductions(data) {
                   <td>${deduct.deduction_name}</td>
                   <td>${deduct.usage_count}</td>
                   <td style="color: #ef4444;"><strong>$${Number.parseFloat(
-                    deduct.total_amount,
+                    deduct.total_amount || 0,
                   ).toLocaleString()}</strong></td>
                 </tr>
               `,
