@@ -102,11 +102,16 @@ class ProcessPayrollPage {
 
   async init() {
     this.attachEventListeners();
-    
+
+    // Initialize the payroll manager to load the current currency rate
+    if (this.payrollManager) {
+      await this.payrollManager.initialize();
+    }
+
     // Safely set display properties only if elements exist
     const emptyState = document.getElementById("emptyState");
     const bulkContainer = document.getElementById("bulkPayrollContainer");
-    
+
     if (emptyState) {
       emptyState.style.display = "block";
     }
@@ -123,6 +128,11 @@ class ProcessPayrollPage {
     if (!month || !year) {
       alert("Please select month and year");
       return;
+    }
+
+    // Ensure currency rate is loaded before processing
+    if (this.payrollManager && this.payrollManager.currencyRate === 1.0) {
+      await this.payrollManager.initialize();
     }
 
     this.selectedMonth = parseInt(month);
