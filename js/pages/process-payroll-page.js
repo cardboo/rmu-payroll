@@ -264,18 +264,27 @@ class ProcessPayrollPage {
 
   /* -------- CALCULATE PAYROLL FOR INDIVIDUAL STAFF -------- */
   calculateStaffPayroll(staffData) {
+    // Use allAllowances/allDeductions if available, otherwise fall back to staff.allowances/deductions
+    const allowancesList = staffData.allAllowances || staffData.allowances;
+    const deductionsList = staffData.allDeductions || staffData.deductions;
+
+    const selectedAllowances = allowancesList.filter((a) => staffData.selectedAllowances.includes(a.id));
+    const selectedDeductions = deductionsList.filter((d) => staffData.selectedDeductions.includes(d.id));
+
+    // Calculate payroll with proper currency handling
     const calc = this.payrollManager.calculatePayroll(
       staffData.basicSalary,
-      staffData.allowances.filter((a) => staffData.selectedAllowances.includes(a.id)),
-      staffData.deductions.filter((d) => staffData.selectedDeductions.includes(d.id))
+      selectedAllowances,
+      selectedDeductions,
+      staffData.currency || 'GHS'
     );
 
     staffData.totalAllowances = calc.total_allowances;
     staffData.totalDeductions = calc.total_deductions;
     staffData.grossSalary = calc.gross_salary;
     staffData.netSalary = calc.net_salary;
-    staffData.netSalaryGHS =
-      staffData.currency === "USD" ? calc.net_salary_ghs : calc.net_salary;
+    staffData.netSalaryGHS = calc.net_salary_ghs;
+    staffData.currencyRate = calc.currency_rate;
   }
 
   /* -------- RENDER BULK PAYROLL TABLE -------- */
@@ -295,11 +304,12 @@ class ProcessPayrollPage {
           <td style="padding: 12px; border: 1px solid #ddd;">${staff.designation || "N/A"}</td>
           <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">
             <input type="number" class="basicSalaryInput" data-index="${index}" value="${staff.basicSalary || 0}" style="width:100px; padding: 6px; border: 1px solid #ddd; border-radius: 4px;" step="0.01" min="0">
+            <span style="font-size: 11px; color: #666;">${staff.currency || 'GHS'}</span>
           </td>
-          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrency(staff.totalAllowances || 0)}</td>
-          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrency(staff.totalDeductions || 0)}</td>
-          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrency(staff.grossSalary || 0)}</td>
-          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrency(staff.netSalary || 0)}</td>
+          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.totalAllowances || 0)}</td>
+          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.totalDeductions || 0)}</td>
+          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.grossSalary || 0)}</td>
+          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.netSalaryGHS || staff.netSalary || 0)}</td>
           <td style="padding: 12px; border: 1px solid #ddd; text-align:center;">
             <button class="btn btn-sm btn-primary editStaffBtn" data-index="${index}" style="padding: 6px 12px;">Edit</button>
           </td>
@@ -318,7 +328,7 @@ class ProcessPayrollPage {
   }
 
   /* -------- OPEN STAFF EDIT MODAL -------- */
-  openStaffEditModal(index) {
+  async openStaffEditModal(index) {
     const staff = this.eligibleStaff[index];
 
     // Get all available allowances and deductions from the system
@@ -330,18 +340,69 @@ class ProcessPayrollPage {
       return;
     }
 
-    // Build allowance checkboxes - ALL allowances with checked status based on selection
-    const allowanceCheckboxes = staff.allowances
+    // Fetch ALL allowances and ALL deductions from the API
+    let allAllowances = [];
+    let allDeductions = [];
+
+    try {
+      const [allowancesRes, deductionsRes] = await Promise.all([
+        apiService.get(apiEndpoints.ALLOWANCES),
+        apiService.get(apiEndpoints.DEDUCTIONS)
+      ]);
+
+      if (allowancesRes.success && allowancesRes.data) {
+        allAllowances = allowancesRes.data;
+      }
+      if (deductionsRes.success && deductionsRes.data) {
+        allDeductions = deductionsRes.data;
+      }
+    } catch (error) {
+      console.error("[v0] Error loading allowances/deductions:", error);
+    }
+
+    // Merge ALL allowances with staff's existing allowances (to preserve custom amounts)
+    const mergedAllowances = allAllowances.map((a) => {
+      const staffAllowance = staff.allowances.find((sa) => sa.id === a.id);
+      return {
+        id: a.id,
+        allowance_name: a.allowance_name,
+        is_percentage: a.is_percentage,
+        default_amount: parseFloat(a.default_amount) || 0,
+        amount: staffAllowance ? (staffAllowance.amount || staffAllowance.default_amount || parseFloat(a.default_amount) || 0) : (parseFloat(a.default_amount) || 0),
+        is_bonded: a.is_bonded,
+        eligible_status: a.eligible_status
+      };
+    });
+
+    // Merge ALL deductions with staff's existing deductions
+    const mergedDeductions = allDeductions.map((d) => {
+      const staffDeduction = staff.deductions.find((sd) => sd.id === d.id);
+      return {
+        id: d.id,
+        deduction_name: d.deduction_name,
+        is_percentage: d.is_percentage,
+        default_amount: parseFloat(d.default_amount) || 0,
+        amount: staffDeduction ? (staffDeduction.amount || staffDeduction.default_amount || parseFloat(d.default_amount) || 0) : (parseFloat(d.default_amount) || 0)
+      };
+    });
+
+    // Store merged data for use in save/calculate
+    staff.allAllowances = mergedAllowances;
+    staff.allDeductions = mergedDeductions;
+
+    // Build allowance checkboxes - ALL allowances with checked status based on staff's selection
+    const allowanceCheckboxes = mergedAllowances
       .map(
-        (a, idx) => `
+        (a) => `
         <div style="margin: 10px 0; padding: 12px; background: #f9f9f9; border-radius: 4px; display: flex; align-items: center; gap: 10px;">
           <input type="checkbox" id="allow_${a.id}" class="allowanceCheckbox" data-id="${a.id}" data-is-percentage="${a.is_percentage}" ${staff.selectedAllowances.includes(a.id) ? "checked" : ""}>
           <label for="allow_${a.id}" style="flex: 1; margin: 0;">
             <strong>${a.allowance_name || `Allowance ${a.id}`}</strong>
+            ${a.is_bonded ? '<span style="color: #ff9800; font-size: 11px; margin-left: 5px;">(Bonded)</span>' : ''}
           </label>
           ${
             a.is_percentage
-              ? `<span style="color: #666; font-size: 12px; min-width: 80px;">${a.amount || a.default_amount || 0}%</span>`
+              ? `<span style="color: #666; font-size: 12px; min-width: 80px;">${a.default_amount || 0}%</span>`
               : `<input type="number" class="allowanceAmountInput" data-id="${a.id}" value="${a.amount || a.default_amount || 0}" style="width: 100px; padding: 6px; border: 1px solid #ddd; border-radius: 4px;" step="0.01" min="0">`
           }
         </div>
@@ -349,9 +410,9 @@ class ProcessPayrollPage {
       )
       .join("");
 
-    const deductionCheckboxes = staff.deductions
+    const deductionCheckboxes = mergedDeductions
       .map(
-        (d, idx) => `
+        (d) => `
         <div style="margin: 10px 0; padding: 12px; background: #f9f9f9; border-radius: 4px; display: flex; align-items: center; gap: 10px;">
           <input type="checkbox" id="deduct_${d.id}" class="deductionCheckbox" data-id="${d.id}" data-is-percentage="${d.is_percentage}" ${staff.selectedDeductions.includes(d.id) ? "checked" : ""}>
           <label for="deduct_${d.id}" style="flex: 1; margin: 0;">
@@ -359,7 +420,7 @@ class ProcessPayrollPage {
           </label>
           ${
             d.is_percentage
-              ? `<span style="color: #666; font-size: 12px; min-width: 80px;">${d.amount || d.default_amount || 0}%</span>`
+              ? `<span style="color: #666; font-size: 12px; min-width: 80px;">${d.default_amount || 0}%</span>`
               : `<input type="number" class="deductionAmountInput" data-id="${d.id}" value="${d.amount || d.default_amount || 0}" style="width: 100px; padding: 6px; border: 1px solid #ddd; border-radius: 4px;" step="0.01" min="0">`
           }
         </div>
@@ -380,6 +441,10 @@ class ProcessPayrollPage {
       display: block;
     `;
 
+    // Calculate GHS equivalent for display
+    const currencyRate = this.payrollManager.currencyRate || 1.0;
+    const basicSalaryGHS = staff.currency === 'USD' ? staff.basicSalary * currencyRate : staff.basicSalary;
+
     modal.innerHTML = `
       <div style="
         background-color: white;
@@ -399,24 +464,36 @@ class ProcessPayrollPage {
         <div style="margin-bottom: 20px; padding: 15px; background: #f0f0f0; border-radius: 4px;">
           <p style="margin: 5px 0;"><strong>Staff:</strong> ${staff.staffNumber} - ${staff.name}</p>
           <p style="margin: 5px 0;"><strong>Department:</strong> ${staff.department}</p>
-          <p style="margin: 5px 0;"><strong>Basic Salary:</strong> ${this.payrollManager.formatCurrency(staff.basicSalary)} ${staff.currency}</p>
+          <p style="margin: 5px 0;"><strong>Basic Salary:</strong> ${this.payrollManager.formatCurrency(staff.basicSalary, staff.currency)} ${staff.currency}</p>
+          ${staff.currency === 'USD' ? `
+            <p style="margin: 5px 0; color: #1976d2;"><strong>Exchange Rate:</strong> 1 USD = ${currencyRate.toFixed(4)} GHS</p>
+            <p style="margin: 5px 0; color: #1976d2;"><strong>Basic Salary (GHS):</strong> ${this.payrollManager.formatCurrencyGHS(basicSalaryGHS)}</p>
+          ` : ''}
         </div>
 
-        <h3 style="margin: 20px 0 10px 0;">Allowances</h3>
+        ${staff.currency === 'USD' ? `
+        <div style="margin-bottom: 20px; padding: 12px; background: #e3f2fd; border-radius: 4px; border-left: 4px solid #1976d2;">
+          <p style="margin: 0; font-size: 13px; color: #1565c0;">
+            <strong>Note:</strong> This staff's salary is in USD. All calculations are performed in GHS after converting the basic salary using the current exchange rate.
+          </p>
+        </div>
+        ` : ''}
+
+        <h3 style="margin: 20px 0 10px 0;">Allowances <span style="font-size: 12px; color: #666; font-weight: normal;">(amounts in GHS)</span></h3>
         <div id="allowancesContainer" style="margin-bottom: 20px;">
           ${allowanceCheckboxes || '<p style="color: #999;">No allowances available</p>'}
         </div>
 
-        <h3 style="margin: 20px 0 10px 0;">Deductions</h3>
+        <h3 style="margin: 20px 0 10px 0;">Deductions <span style="font-size: 12px; color: #666; font-weight: normal;">(amounts in GHS)</span></h3>
         <div id="deductionsContainer" style="margin-bottom: 20px;">
           ${deductionCheckboxes || '<p style="color: #999;">No deductions available</p>'}
         </div>
 
         <div id="editSummary" style="background: #e8f5e9; padding: 15px; border-radius: 4px; margin: 20px 0; border: 2px solid #4caf50;">
-          <p style="margin: 5px 0;"><strong>Gross Salary:</strong> <span id="editGrossSalary" style="font-weight: bold; color: #1976d2;">${this.payrollManager.formatCurrency(staff.basicSalary)} ${staff.currency}</span></p>
-          <p style="margin: 5px 0;"><strong>Total Allowances:</strong> <span id="editTotalAllow" style="font-weight: bold; color: #4caf50;">+ ${this.payrollManager.formatCurrency(staff.totalAllowances)}</span></p>
-          <p style="margin: 5px 0;"><strong>Total Deductions:</strong> <span id="editTotalDeduct" style="font-weight: bold; color: #d32f2f;">- ${this.payrollManager.formatCurrency(staff.totalDeductions)}</span></p>
-          <p style="margin: 10px 0 0 0; padding-top: 10px; border-top: 2px solid #4caf50; font-weight: bold; color: #27ae60; font-size: 16px;"><strong>Net Salary:</strong> <span id="editNetSalary">${this.payrollManager.formatCurrency(staff.netSalary)} ${staff.currency}</span></p>
+          <p style="margin: 5px 0;"><strong>Basic Salary (GHS):</strong> <span id="editGrossSalary" style="font-weight: bold; color: #1976d2;">${this.payrollManager.formatCurrencyGHS(basicSalaryGHS)}</span></p>
+          <p style="margin: 5px 0;"><strong>Total Allowances:</strong> <span id="editTotalAllow" style="font-weight: bold; color: #4caf50;">+ ${this.payrollManager.formatCurrencyGHS(staff.totalAllowances)}</span></p>
+          <p style="margin: 5px 0;"><strong>Total Deductions:</strong> <span id="editTotalDeduct" style="font-weight: bold; color: #d32f2f;">- ${this.payrollManager.formatCurrencyGHS(staff.totalDeductions)}</span></p>
+          <p style="margin: 10px 0 0 0; padding-top: 10px; border-top: 2px solid #4caf50; font-weight: bold; color: #27ae60; font-size: 16px;"><strong>Net Salary (GHS):</strong> <span id="editNetSalary">${this.payrollManager.formatCurrencyGHS(staff.netSalaryGHS || staff.netSalary)}</span></p>
         </div>
 
         <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
@@ -482,26 +559,42 @@ class ProcessPayrollPage {
     staff.selectedAllowances = selectedAllowanceIds;
     staff.selectedDeductions = selectedDeductionIds;
 
-    // Update amounts for allowances and deductions
+    // Use allAllowances/allDeductions if available (merged list), otherwise fall back to staff.allowances/deductions
+    const allowancesList = staff.allAllowances || staff.allowances;
+    const deductionsList = staff.allDeductions || staff.deductions;
+
+    // Update amounts for allowances
     modal.querySelectorAll(".allowanceAmountInput").forEach((input) => {
       const allowanceId = parseInt(input.getAttribute("data-id"));
-      const allowance = staff.allowances.find((a) => a.id === allowanceId);
+      const allowance = allowancesList.find((a) => a.id === allowanceId);
       if (allowance) {
         allowance.amount = parseFloat(input.value) || allowance.default_amount || 0;
       }
     });
 
+    // Update amounts for deductions
     modal.querySelectorAll(".deductionAmountInput").forEach((input) => {
       const deductionId = parseInt(input.getAttribute("data-id"));
-      const deduction = staff.deductions.find((d) => d.id === deductionId);
+      const deduction = deductionsList.find((d) => d.id === deductionId);
       if (deduction) {
         deduction.amount = parseFloat(input.value) || deduction.default_amount || 0;
       }
     });
 
+    // Update staff.allowances and staff.deductions to only include selected items with updated amounts
+    staff.allowances = selectedAllowanceIds.map((id) => {
+      const a = allowancesList.find((al) => al.id === id);
+      return a ? { ...a } : null;
+    }).filter(Boolean);
+
+    staff.deductions = selectedDeductionIds.map((id) => {
+      const d = deductionsList.find((de) => de.id === id);
+      return d ? { ...d } : null;
+    }).filter(Boolean);
+
     // Recalculate payroll with updated values
     this.calculateStaffPayroll(staff);
-    
+
     // Update the table and close modal
     this.renderBulkPayrollTable();
     modal.remove();
@@ -517,18 +610,26 @@ class ProcessPayrollPage {
       modal.querySelectorAll(".deductionCheckbox:checked")
     ).map((cb) => parseInt(cb.getAttribute("data-id")));
 
+    // Use allAllowances/allDeductions if available (merged list), otherwise fall back to staff.allowances/deductions
+    const allowancesList = staff.allAllowances || staff.allowances;
+    const deductionsList = staff.allDeductions || staff.deductions;
+
     let totalAllowances = 0;
     let totalDeductions = 0;
 
+    // For USD salaries, convert basic salary to GHS first for calculations
+    const currencyRate = this.payrollManager.currencyRate || 1.0;
+    const basicSalaryForCalc = staff.currency === 'USD' ? staff.basicSalary * currencyRate : staff.basicSalary;
+
     // Calculate total allowances
     selectedAllowanceIds.forEach((allowanceId) => {
-      const allowance = staff.allowances.find((a) => a.id === allowanceId);
+      const allowance = allowancesList.find((a) => a.id === allowanceId);
       if (allowance) {
         if (allowance.is_percentage) {
-          // Percentage of basic salary
-          totalAllowances += (staff.basicSalary * allowance.amount) / 100;
+          // Percentage of basic salary (in GHS)
+          totalAllowances += (basicSalaryForCalc * (allowance.default_amount || allowance.amount || 0)) / 100;
         } else {
-          // Fixed amount - get value from input if available
+          // Fixed amount in GHS - get value from input if available
           const input = modal.querySelector(`.allowanceAmountInput[data-id="${allowanceId}"]`);
           const amount = input ? parseFloat(input.value) || allowance.amount || allowance.default_amount || 0 : (allowance.amount || allowance.default_amount || 0);
           totalAllowances += amount;
@@ -538,13 +639,13 @@ class ProcessPayrollPage {
 
     // Calculate total deductions
     selectedDeductionIds.forEach((deductionId) => {
-      const deduction = staff.deductions.find((d) => d.id === deductionId);
+      const deduction = deductionsList.find((d) => d.id === deductionId);
       if (deduction) {
         if (deduction.is_percentage) {
-          // Percentage of basic salary
-          totalDeductions += (staff.basicSalary * deduction.amount) / 100;
+          // Percentage of basic salary (in GHS)
+          totalDeductions += (basicSalaryForCalc * (deduction.default_amount || deduction.amount || 0)) / 100;
         } else {
-          // Fixed amount - get value from input if available
+          // Fixed amount in GHS - get value from input if available
           const input = modal.querySelector(`.deductionAmountInput[data-id="${deductionId}"]`);
           const amount = input ? parseFloat(input.value) || deduction.amount || deduction.default_amount || 0 : (deduction.amount || deduction.default_amount || 0);
           totalDeductions += amount;
@@ -552,15 +653,16 @@ class ProcessPayrollPage {
       }
     });
 
-    // Calculate gross and net salaries
-    const grossSalary = staff.basicSalary + totalAllowances;
+    // Calculate gross and net salaries (all in GHS)
+    const grossSalary = basicSalaryForCalc + totalAllowances;
     const netSalary = grossSalary - totalDeductions;
 
-    // Update summary display
-    document.getElementById("editGrossSalary").textContent = `${this.payrollManager.formatCurrency(grossSalary)} ${staff.currency}`;
-    document.getElementById("editTotalAllow").textContent = `+ ${this.payrollManager.formatCurrency(totalAllowances)}`;
-    document.getElementById("editTotalDeduct").textContent = `- ${this.payrollManager.formatCurrency(totalDeductions)}`;
-    document.getElementById("editNetSalary").textContent = `${this.payrollManager.formatCurrency(netSalary)} ${staff.currency}`;
+    // Update summary display - show in GHS for all staff
+    const displayCurrency = 'GHS';
+    document.getElementById("editGrossSalary").textContent = `${this.payrollManager.formatCurrencyGHS(grossSalary)}`;
+    document.getElementById("editTotalAllow").textContent = `+ ${this.payrollManager.formatCurrencyGHS(totalAllowances)}`;
+    document.getElementById("editTotalDeduct").textContent = `- ${this.payrollManager.formatCurrencyGHS(totalDeductions)}`;
+    document.getElementById("editNetSalary").textContent = `${this.payrollManager.formatCurrencyGHS(netSalary)}`;
   }
 
   /* -------- SUBMIT BULK PAYROLL -------- */

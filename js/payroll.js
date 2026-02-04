@@ -45,39 +45,51 @@ class PayrollManager {
 		let totalAllowances = 0;
 		let totalDeductions = 0;
 
-		// Calculate allowances
+		// For USD salaries (permanent staff), convert to GHS first before calculations
+		// For GHS salaries (contract staff), no conversion needed
+		const basicSalaryGHS = salaryCurrency === 'USD'
+			? basicSalary * this.currencyRate
+			: basicSalary;
+
+		// Calculate allowances (all amounts are in GHS)
 		allowances.forEach((allowance) => {
 			if (allowance.is_percentage) {
-				totalAllowances += (basicSalary * parseFloat(allowance.default_amount)) / 100;
+				// Percentage calculated on the GHS basic salary
+				const percentValue = parseFloat(allowance.default_amount) || parseFloat(allowance.amount) || 0;
+				totalAllowances += (basicSalaryGHS * percentValue) / 100;
 			} else {
-				totalAllowances += parseFloat(allowance.default_amount) || 0;
+				// Fixed allowances are always in GHS
+				totalAllowances += parseFloat(allowance.amount) || parseFloat(allowance.default_amount) || 0;
 			}
 		});
 
-		// Calculate deductions
+		// Calculate deductions (all amounts are in GHS)
 		deductions.forEach((deduction) => {
 			if (deduction.is_percentage) {
-				totalDeductions += (basicSalary * parseFloat(deduction.default_amount)) / 100;
+				// Percentage calculated on the GHS basic salary
+				const percentValue = parseFloat(deduction.default_amount) || parseFloat(deduction.amount) || 0;
+				totalDeductions += (basicSalaryGHS * percentValue) / 100;
 			} else {
-				totalDeductions += parseFloat(deduction.default_amount) || 0;
+				// Fixed deductions are always in GHS
+				totalDeductions += parseFloat(deduction.amount) || parseFloat(deduction.default_amount) || 0;
 			}
 		});
 
-		const grossSalary = basicSalary + totalAllowances;
+		// All calculations are now in GHS
+		const grossSalary = basicSalaryGHS + totalAllowances;
 		const netSalary = grossSalary - totalDeductions;
 
-		// Only convert to GHS if salary is in USD
-		const netSalaryGHS = salaryCurrency === 'USD'
-			? netSalary * this.currencyRate
-			: netSalary;
+		// Net salary in GHS is the final result for all staff
+		const netSalaryGHS = netSalary;
 
 		return {
-			basic_salary: basicSalary,
+			basic_salary: basicSalary, // Original basic salary (USD or GHS)
+			basic_salary_ghs: basicSalaryGHS, // Basic salary converted to GHS
 			total_allowances: totalAllowances,
 			total_deductions: totalDeductions,
-			gross_salary: grossSalary,
-			net_salary: netSalary,
-			net_salary_ghs: netSalaryGHS,
+			gross_salary: grossSalary, // In GHS
+			net_salary: netSalary, // In GHS
+			net_salary_ghs: netSalaryGHS, // In GHS
 			currency_rate: this.currencyRate,
 			salary_currency: salaryCurrency,
 		};

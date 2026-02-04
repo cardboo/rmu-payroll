@@ -25,12 +25,11 @@ class CurrencyRatesPage {
                 <th>Rate (1 USD = ? GHS)</th>
                 <th>Set By</th>
                 <th>Status</th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="rates-tbody">
               <tr>
-                <td colspan="5" style="text-align: center; padding: 40px;">
+                <td colspan="4" style="text-align: center; padding: 40px;">
                   <div class="loader" style="margin: 0 auto;"></div>
                   <p style="margin-top: 12px; color: var(--text-secondary);">Loading currency rates...</p>
                 </td>
@@ -108,7 +107,7 @@ class CurrencyRatesPage {
 			console.error("[v0] Error loading currency rates:", error);
 			document.getElementById("rates-tbody").innerHTML = `
         <tr>
-          <td colspan="5" class="error-message">Failed to load currency rates. Please try again.</td>
+          <td colspan="4" class="error-message">Failed to load currency rates. Please try again.</td>
         </tr>
       `;
 		}
@@ -120,7 +119,7 @@ class CurrencyRatesPage {
 		if (rates.length === 0) {
 			tbody.innerHTML = `
         <tr>
-          <td colspan="5" class="empty-state">
+          <td colspan="4" class="empty-state">
             <div class="empty-state-icon">💱</div>
             <div class="empty-state-text">No currency rates found. Set your first exchange rate to get started.</div>
           </td>
@@ -131,10 +130,8 @@ class CurrencyRatesPage {
 
 		tbody.innerHTML = rates
 			.map((rate) => {
-				const effectiveDate = new Date(rate.effective_date);
-				const today = new Date();
-				today.setHours(0, 0, 0, 0);
-				const isCurrent = effectiveDate <= today;
+				// Use is_active from database to determine status
+				const isActive = rate.is_active == 1 || rate.is_active === true;
 
 				return `
         <tr>
@@ -145,24 +142,10 @@ class CurrencyRatesPage {
           <td>${rate.set_by_name || "System"}</td>
           <td>
             <span class="badge ${
-							isCurrent ? "badge-success" : "badge-warning"
+							isActive ? "badge-success" : "badge-secondary"
 						}">
-              ${isCurrent ? "Active" : "Future"}
+              ${isActive ? "Active" : "Inactive"}
             </span>
-          </td>
-          <td>
-            <div class="action-buttons">
-              <button class="btn btn-sm btn-primary" onclick="window.currencyRatesPage.showEditModal(${
-								rate.id
-							})" title="Edit">
-                Edit
-              </button>
-              <button class="btn btn-sm btn-danger" onclick="window.currencyRatesPage.deleteRate(${
-								rate.id
-							})" title="Delete">
-                Delete
-              </button>
-            </div>
           </td>
         </tr>
       `;
@@ -221,24 +204,23 @@ class CurrencyRatesPage {
 		const formData = new FormData(form);
 		const data = Object.fromEntries(formData.entries());
 
+		// Always set new rates as active (this will deactivate all other rates)
+		data.is_active = true;
+
 		try {
-			let response;
-			if (this.currentRate) {
-				response = await this.crudManager.update(this.currentRate.id, data);
-			} else {
-				response = await this.crudManager.create(data);
-			}
+			// Only create new rates, no editing (since we removed edit buttons)
+			const response = await this.crudManager.create(data);
 
 			if (response.success) {
 				this.crudManager.showMessage(
-					response.message || "Currency rate saved successfully!",
+					response.message || "Currency rate set successfully! This rate is now active.",
 					"success"
 				);
 				this.closeModal();
 				await this.loadRates();
 			} else {
 				this.crudManager.showMessage(
-					response.message || "Failed to save currency rate",
+					response.message || "Failed to set currency rate",
 					"error"
 				);
 			}
