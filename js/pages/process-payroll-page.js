@@ -5,6 +5,7 @@ class ProcessPayrollPage {
     this.payrollPeriodId = null;
     this.selectedMonth = null;
     this.selectedYear = null;
+    this.isModalLoading = false;
 
     if (!this.payrollManager) {
       console.error("[v0] PayrollManager not available. Ensure payroll.js is loaded.");
@@ -327,17 +328,18 @@ class ProcessPayrollPage {
         `})
       .join("");
 
-    // Re-attach event listeners for edit buttons
-    document.querySelectorAll(".editStaffBtn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        const index = parseInt(e.target.getAttribute("data-index"));
-        this.openStaffEditModal(index);
-      });
-    });
+    // Note: Edit button clicks are handled via event delegation in attachEventListeners()
+    // Do NOT add direct event listeners here as it causes duplicate handlers
   }
 
   /* -------- OPEN STAFF EDIT MODAL -------- */
   async openStaffEditModal(index) {
+    // Prevent multiple simultaneous modal opens
+    if (this.isModalLoading) {
+      return;
+    }
+    this.isModalLoading = true;
+
     // Remove any existing modal first to prevent multiple modals
     const existingModal = document.getElementById("staffEditModal");
     if (existingModal) {
@@ -352,6 +354,7 @@ class ProcessPayrollPage {
 
     if (!apiService || !apiEndpoints) {
       alert("API not initialized");
+      this.isModalLoading = false;
       return;
     }
 
@@ -520,6 +523,9 @@ class ProcessPayrollPage {
 
     document.body.appendChild(modal);
 
+    // Reset the loading flag now that modal is created
+    this.isModalLoading = false;
+
     // Get references to elements within the modal
     const closeBtn = modal.querySelector("#closeEditModal");
     const cancelBtn = modal.querySelector("#cancelEditBtn");
@@ -528,6 +534,7 @@ class ProcessPayrollPage {
 
     // Close modal function
     const closeModal = () => {
+      this.isModalLoading = false;
       modal.remove();
     };
 
