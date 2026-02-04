@@ -294,25 +294,37 @@ class ProcessPayrollPage {
       console.error("[v0] bulkPayrollTbody element not found");
       return;
     }
+
+    // Get current currency rate for display
+    const currencyRate = this.payrollManager.currencyRate || 1.0;
+
     tbody.innerHTML = this.eligibleStaff
       .map(
-        (staff, index) => `
-        <tr>
-          <td style="padding: 12px; border: 1px solid #ddd;">${staff.staffNumber || "N/A"}</td>
-          <td style="padding: 12px; border: 1px solid #ddd;">${staff.name || "N/A"}</td>
-          <td style="padding: 12px; border: 1px solid #ddd;">${staff.department || "N/A"}</td>
-          <td style="padding: 12px; border: 1px solid #ddd;">${staff.designation || "N/A"}</td>
-          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${staff.currency + staff.basicSalary}</td>
-          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.totalAllowances || 0)}</td>
-          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.totalDeductions || 0)}</td>
-          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.grossSalary || 0)}</td>
-          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.netSalaryGHS || staff.netSalary || 0)}</td>
-          <td style="padding: 12px; border: 1px solid #ddd; text-align:center;">
-            <button class="btn btn-sm btn-primary editStaffBtn" data-index="${index}" style="padding: 6px 12px;">Edit</button>
-          </td>
-        </tr>
-      `
-      )
+        (staff, index) => {
+          // For display: convert USD salary to GHS
+          const displaySalary = staff.currency === 'USD'
+            ? staff.basicSalary * currencyRate
+            : staff.basicSalary;
+
+          return `
+          <tr>
+            <td style="padding: 12px; border: 1px solid #ddd;">${staff.staffNumber || "N/A"}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">${staff.name || "N/A"}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">${staff.department || "N/A"}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">${staff.designation || "N/A"}</td>
+            <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">
+              ${this.payrollManager.formatCurrencyGHS(displaySalary)}
+              ${staff.currency === 'USD' ? `<br><span style="font-size: 10px; color: #1976d2;">(${this.payrollManager.formatCurrency(staff.basicSalary, 'USD')} USD)</span>` : ''}
+            </td>
+            <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.totalAllowances || 0)}</td>
+            <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.totalDeductions || 0)}</td>
+            <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.grossSalary || 0)}</td>
+            <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.netSalaryGHS || staff.netSalary || 0)}</td>
+            <td style="padding: 12px; border: 1px solid #ddd; text-align:center;">
+              <button class="btn btn-sm btn-primary editStaffBtn" data-index="${index}" style="padding: 6px 12px;">Edit</button>
+            </td>
+          </tr>
+        `})
       .join("");
 
     // Re-attach event listeners for edit buttons
@@ -326,6 +338,12 @@ class ProcessPayrollPage {
 
   /* -------- OPEN STAFF EDIT MODAL -------- */
   async openStaffEditModal(index) {
+    // Remove any existing modal first to prevent multiple modals
+    const existingModal = document.getElementById("staffEditModal");
+    if (existingModal) {
+      existingModal.remove();
+    }
+
     const staff = this.eligibleStaff[index];
 
     // Get all available allowances and deductions from the system
