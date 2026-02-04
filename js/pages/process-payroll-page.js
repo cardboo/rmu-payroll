@@ -302,10 +302,7 @@ class ProcessPayrollPage {
           <td style="padding: 12px; border: 1px solid #ddd;">${staff.name || "N/A"}</td>
           <td style="padding: 12px; border: 1px solid #ddd;">${staff.department || "N/A"}</td>
           <td style="padding: 12px; border: 1px solid #ddd;">${staff.designation || "N/A"}</td>
-          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">
-            <input type="number" class="basicSalaryInput" data-index="${index}" value="${staff.basicSalary || 0}" style="width:100px; padding: 6px; border: 1px solid #ddd; border-radius: 4px;" step="0.01" min="0">
-            <span style="font-size: 11px; color: #666;">${staff.currency || 'GHS'}</span>
-          </td>
+          <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${staff.currency + staff.basicSalary}</td>
           <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.totalAllowances || 0)}</td>
           <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.totalDeductions || 0)}</td>
           <td style="padding: 12px; border: 1px solid #ddd; text-align:right;">${this.payrollManager.formatCurrencyGHS(staff.grossSalary || 0)}</td>
