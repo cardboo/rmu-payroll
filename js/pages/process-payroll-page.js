@@ -505,18 +505,35 @@ class ProcessPayrollPage {
 
     document.body.appendChild(modal);
 
-    // Event listeners
-    document.getElementById("closeEditModal").onclick = () => {
+    // Get references to elements within the modal
+    const closeBtn = modal.querySelector("#closeEditModal");
+    const cancelBtn = modal.querySelector("#cancelEditBtn");
+    const saveBtn = modal.querySelector("#saveEditBtn");
+    const modalContent = modal.querySelector("div");
+
+    // Close modal function
+    const closeModal = () => {
       modal.remove();
     };
 
-    document.getElementById("cancelEditBtn").onclick = () => {
-      modal.remove();
-    };
+    // Event listeners using addEventListener for reliability
+    closeBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeModal();
+    });
 
-    document.getElementById("saveEditBtn").onclick = () => {
+    cancelBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeModal();
+    });
+
+    saveBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       this.saveStaffChanges(modal, staff, index);
-    };
+    });
 
     // Live calculation on change - attach to ALL inputs and checkboxes
     modal.querySelectorAll(".allowanceCheckbox, .deductionCheckbox, .allowanceAmountInput, .deductionAmountInput").forEach(
@@ -526,16 +543,17 @@ class ProcessPayrollPage {
       }
     );
 
-    // Prevent modal from closing when clicking inside it
-    modal.querySelector("div").onclick = (e) => {
-      e.stopPropagation();
-    };
-
-    window.onclick = (event) => {
-      if (event.target == modal) {
-        modal.remove();
+    // Close modal when clicking on the backdrop (outside modal content)
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        closeModal();
       }
-    };
+    });
+
+    // Prevent clicks inside modal content from closing the modal
+    modalContent.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
   }
 
   saveStaffChanges(modal, staff, index) {
@@ -658,11 +676,16 @@ class ProcessPayrollPage {
     const netSalary = grossSalary - totalDeductions;
 
     // Update summary display - show in GHS for all staff
-    const displayCurrency = 'GHS';
-    document.getElementById("editGrossSalary").textContent = `${this.payrollManager.formatCurrencyGHS(grossSalary)}`;
-    document.getElementById("editTotalAllow").textContent = `+ ${this.payrollManager.formatCurrencyGHS(totalAllowances)}`;
-    document.getElementById("editTotalDeduct").textContent = `- ${this.payrollManager.formatCurrencyGHS(totalDeductions)}`;
-    document.getElementById("editNetSalary").textContent = `${this.payrollManager.formatCurrencyGHS(netSalary)}`;
+    // Use modal.querySelector to ensure we're updating elements within this modal
+    const grossSalaryEl = modal.querySelector("#editGrossSalary");
+    const totalAllowEl = modal.querySelector("#editTotalAllow");
+    const totalDeductEl = modal.querySelector("#editTotalDeduct");
+    const netSalaryEl = modal.querySelector("#editNetSalary");
+
+    if (grossSalaryEl) grossSalaryEl.textContent = `${this.payrollManager.formatCurrencyGHS(grossSalary)}`;
+    if (totalAllowEl) totalAllowEl.textContent = `+ ${this.payrollManager.formatCurrencyGHS(totalAllowances)}`;
+    if (totalDeductEl) totalDeductEl.textContent = `- ${this.payrollManager.formatCurrencyGHS(totalDeductions)}`;
+    if (netSalaryEl) netSalaryEl.textContent = `${this.payrollManager.formatCurrencyGHS(netSalary)}`;
   }
 
   /* -------- SUBMIT BULK PAYROLL -------- */
@@ -692,20 +715,30 @@ class ProcessPayrollPage {
         currency_rate: staff.currencyRate,
         allowances: staff.selectedAllowances.map((id) => {
           const allowance = staff.allowances.find((a) => a.id === id);
+          const isPercentage = allowance?.is_percentage ? 1 : 0;
+          // For percentages, the percentage value is stored in default_amount
+          const percentageValue = isPercentage ? (allowance?.default_amount || allowance?.amount || 0) : 0;
+          // For fixed amounts, use the amount; for percentages, the backend will calculate
+          const amount = isPercentage ? 0 : (allowance?.amount || allowance?.default_amount || 0);
           return {
             allowance_id: id,
-            amount: allowance?.amount || allowance?.default_amount || 0,
-            is_percentage: allowance?.is_percentage || 0,
-            percentage_value: allowance?.percentage_value || 0,
+            amount: amount,
+            is_percentage: isPercentage,
+            percentage_value: percentageValue,
           };
         }),
         deductions: staff.selectedDeductions.map((id) => {
           const deduction = staff.deductions.find((d) => d.id === id);
+          const isPercentage = deduction?.is_percentage ? 1 : 0;
+          // For percentages, the percentage value is stored in default_amount
+          const percentageValue = isPercentage ? (deduction?.default_amount || deduction?.amount || 0) : 0;
+          // For fixed amounts, use the amount; for percentages, the backend will calculate
+          const amount = isPercentage ? 0 : (deduction?.amount || deduction?.default_amount || 0);
           return {
             deduction_id: id,
-            amount: deduction?.amount || deduction?.default_amount || 0,
-            is_percentage: deduction?.is_percentage || 0,
-            percentage_value: deduction?.percentage_value || 0,
+            amount: amount,
+            is_percentage: isPercentage,
+            percentage_value: percentageValue,
           };
         }),
       }));
