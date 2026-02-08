@@ -6,6 +6,7 @@ class PayrollManager {
 		this.selectedAllowances = [];
 		this.selectedDeductions = [];
 		this.currencyRate = 1.0;
+		this.currencyRateLoaded = false;
 	}
 
 	async initialize() {
@@ -19,6 +20,7 @@ class PayrollManager {
 			);
 			if (response.success && response.data) {
 				this.currencyRate = Number.parseFloat(response.data.rate);
+				this.currencyRateLoaded = true;
 			}
 		} catch (error) {
 			console.error("Error loading currency rate:", error);

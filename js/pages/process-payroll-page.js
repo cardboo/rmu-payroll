@@ -131,7 +131,7 @@ class ProcessPayrollPage {
     }
 
     // Ensure currency rate is loaded before processing
-    if (this.payrollManager && this.payrollManager.currencyRate === 1.0) {
+    if (this.payrollManager && !this.payrollManager.currencyRateLoaded) {
       await this.payrollManager.initialize();
     }
 
@@ -387,6 +387,9 @@ class ProcessPayrollPage {
       }
     } catch (error) {
       console.error("[v0] Error loading allowances/deductions:", error);
+      this.isModalLoading = false;
+      alert("Failed to load allowances/deductions. Please try again.");
+      return;
     }
 
     // Merge ALL allowances with staff's existing allowances (to preserve custom amounts)
@@ -819,26 +822,29 @@ class ProcessPayrollPage {
       this.eligibleStaff = [];
     });
 
-    // Event delegation for edit buttons
-    document.addEventListener("click", (e) => {
-      if (e.target.classList.contains("editStaffBtn")) {
-        const index = parseInt(e.target.getAttribute("data-index"));
-        this.openStaffEditModal(index);
-      }
-    });
-
-    // Event delegation for basic salary changes
-    document.addEventListener("change", (e) => {
-      if (e.target.classList.contains("basicSalaryInput")) {
-        const index = parseInt(e.target.getAttribute("data-index"));
-        const staff = this.eligibleStaff[index];
-        if (staff) {
-          staff.basicSalary = parseFloat(e.target.value) || 0;
-          this.calculateStaffPayroll(staff);
-          this.renderBulkPayrollTable();
+    // Event delegation for edit buttons - scoped to payroll container
+    const bulkContainer = document.getElementById("bulkPayrollContainer");
+    if (bulkContainer) {
+      bulkContainer.addEventListener("click", (e) => {
+        if (e.target.classList.contains("editStaffBtn")) {
+          const index = parseInt(e.target.getAttribute("data-index"));
+          this.openStaffEditModal(index);
         }
-      }
-    });
+      });
+
+      // Event delegation for basic salary changes
+      bulkContainer.addEventListener("change", (e) => {
+        if (e.target.classList.contains("basicSalaryInput")) {
+          const index = parseInt(e.target.getAttribute("data-index"));
+          const staff = this.eligibleStaff[index];
+          if (staff) {
+            staff.basicSalary = parseFloat(e.target.value) || 0;
+            this.calculateStaffPayroll(staff);
+            this.renderBulkPayrollTable();
+          }
+        }
+      });
+    }
   }
 }
 

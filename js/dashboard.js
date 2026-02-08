@@ -555,16 +555,25 @@ function showStaffPayrollEditModal(staff, staffList, staffIndex) {
         </div>
     `;
 
-	// Attach event listeners
-	document.getElementById("closeEditModal").onclick = () => {
-		modal.style.display = "none";
-	};
+	// Attach event listeners with null checks
+	const closeEditModalBtn = document.getElementById("closeEditModal");
+	const cancelEditBtn = document.getElementById("cancelEditBtn");
+	const saveEditBtn = document.getElementById("saveEditBtn");
 
-	document.getElementById("cancelEditBtn").onclick = () => {
-		modal.style.display = "none";
-	};
+	if (closeEditModalBtn) {
+		closeEditModalBtn.onclick = () => {
+			modal.style.display = "none";
+		};
+	}
 
-	document.getElementById("saveEditBtn").onclick = () => {
+	if (cancelEditBtn) {
+		cancelEditBtn.onclick = () => {
+			modal.style.display = "none";
+		};
+	}
+
+	if (saveEditBtn) {
+		saveEditBtn.onclick = () => {
 		// Get selected allowances and deductions
 		const selectedAllowances = Array.from(
 			modal.querySelectorAll(".allowanceCheckbox:checked")
@@ -641,6 +650,7 @@ function showStaffPayrollEditModal(staff, staffList, staffIndex) {
 
 		alert("Payroll updated for " + staff.name);
 	};
+	}
 
 	// Add live calculation on checkbox/input change
 	const updateCalculation = () => {
@@ -810,18 +820,28 @@ function showBulkConfirmationModal(staffList, period, month, year) {
         </div>
     `;
 
-	document.getElementById("closeBulkModal").onclick = () => {
-		modal.style.display = "none";
-	};
+	const closeBulkModalBtn = document.getElementById("closeBulkModal");
+	const cancelBulkBtn = document.getElementById("cancelBulkBtn");
+	const confirmBulkBtn = document.getElementById("confirmBulkBtn");
 
-	document.getElementById("cancelBulkBtn").onclick = () => {
-		modal.style.display = "none";
-	};
+	if (closeBulkModalBtn) {
+		closeBulkModalBtn.onclick = () => {
+			modal.style.display = "none";
+		};
+	}
 
-	document.getElementById("confirmBulkBtn").onclick = async () => {
-		await processBulkPayroll(staffList, period);
-		modal.style.display = "none";
-	};
+	if (cancelBulkBtn) {
+		cancelBulkBtn.onclick = () => {
+			modal.style.display = "none";
+		};
+	}
+
+	if (confirmBulkBtn) {
+		confirmBulkBtn.onclick = async () => {
+			await processBulkPayroll(staffList, period);
+			modal.style.display = "none";
+		};
+	}
 
 	modal.style.display = "block";
 
@@ -967,13 +987,20 @@ function showBulkResultsModal(result, period) {
         </div>
     `;
 
-	document.getElementById("closeBulkResultsModal").onclick = () => {
-		modal.style.display = "none";
-	};
+	const closeBulkResultsModalBtn = document.getElementById("closeBulkResultsModal");
+	const closeBulkResultsBtn = document.getElementById("closeBulkResultsBtn");
 
-	document.getElementById("closeBulkResultsBtn").onclick = () => {
-		modal.style.display = "none";
-	};
+	if (closeBulkResultsModalBtn) {
+		closeBulkResultsModalBtn.onclick = () => {
+			modal.style.display = "none";
+		};
+	}
+
+	if (closeBulkResultsBtn) {
+		closeBulkResultsBtn.onclick = () => {
+			modal.style.display = "none";
+		};
+	}
 
 	modal.style.display = "block";
 
@@ -986,9 +1013,12 @@ function showBulkResultsModal(result, period) {
 }
 
 function setupPayrollEventListeners(payrollManager) {
-	document
-		.getElementById("processBulkPayrollBtn")
-		.addEventListener("click", async () => {
+	const processBulkPayrollBtn = document.getElementById("processBulkPayrollBtn");
+	if (!processBulkPayrollBtn) {
+		console.warn("[v0] processBulkPayrollBtn not found");
+		return;
+	}
+	processBulkPayrollBtn.addEventListener("click", async () => {
 			const month = document.getElementById("payrollMonth").value;
 			const year = document.getElementById("payrollYear").value;
 
