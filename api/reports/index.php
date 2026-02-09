@@ -160,7 +160,7 @@ try {
                 $allowancesGhs = $isUsd ? $allowancesOriginal * $entryRate : $allowancesOriginal;
                 $deductionsGhs = $isUsd ? $deductionsOriginal * $entryRate : $deductionsOriginal;
                 $grossGhs = $isUsd ? $grossOriginal * $entryRate : $grossOriginal;
-                $netGhs = floatval($entry['net_salary_ghs']);
+                $netGhs = $isUsd ? $netOriginal * $entryRate : $netOriginal;
 
                 $entries[] = [
                     'id' => $entry['id'],
@@ -266,7 +266,7 @@ try {
                 $deptMap[$deptId]['total_allowances_ghs'] += $isUsd ? floatval($entry['total_allowances']) * $entryRate : floatval($entry['total_allowances']);
                 $deptMap[$deptId]['total_deductions_ghs'] += $isUsd ? floatval($entry['total_deductions']) * $entryRate : floatval($entry['total_deductions']);
                 $deptMap[$deptId]['total_gross_ghs'] += $isUsd ? floatval($entry['gross_salary']) * $entryRate : floatval($entry['gross_salary']);
-                $deptMap[$deptId]['total_net_ghs'] += floatval($entry['net_salary_ghs']);
+                $deptMap[$deptId]['total_net_ghs'] += $isUsd ? floatval($entry['net_salary']) * $entryRate : floatval($entry['net_salary']);
             }
 
             // Convert to array and sort by net salary descending
@@ -309,22 +309,53 @@ try {
         } else if ($type === 'yearly_comparison') {
             $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
 
+            // Get individual entries to handle currency conversion properly
             $query = "SELECT
                         pp.month,
                         pp.year,
-                        COUNT(pe.id) as staff_count,
-                        SUM(pe.net_salary_ghs) as total_payroll
+                        pe.net_salary,
+                        pe.currency_rate,
+                        s.salary_currency
                       FROM payroll_periods pp
                       LEFT JOIN payroll_entries pe ON pp.id = pe.payroll_period_id
+                      LEFT JOIN staffs s ON pe.staff_id = s.id
                       WHERE pp.year = :year
-                      GROUP BY pp.id, pp.month, pp.year
                       ORDER BY pp.month";
 
             $stmt = $db->prepare($query);
             $stmt->bindParam(':year', $year);
             $stmt->execute();
+            $entries = $stmt->fetchAll();
 
-            $months = $stmt->fetchAll();
+            // Aggregate by month with currency conversion
+            $monthMap = [];
+            foreach ($entries as $entry) {
+                $monthKey = $entry['month'];
+                if (!isset($monthMap[$monthKey])) {
+                    $monthMap[$monthKey] = [
+                        'month' => $entry['month'],
+                        'year' => $entry['year'],
+                        'staff_count' => 0,
+                        'total_payroll' => 0
+                    ];
+                }
+
+                if ($entry['net_salary'] !== null) {
+                    $isUsd = $entry['salary_currency'] === 'USD';
+                    $entryRate = floatval($entry['currency_rate']) ?: $currencyRate;
+                    $netSalary = floatval($entry['net_salary']);
+                    $netGhs = $isUsd ? $netSalary * $entryRate : $netSalary;
+
+                    $monthMap[$monthKey]['staff_count']++;
+                    $monthMap[$monthKey]['total_payroll'] += $netGhs;
+                }
+            }
+
+            // Convert to array and sort by month
+            $months = array_values($monthMap);
+            usort($months, function($a, $b) {
+                return $a['month'] <=> $b['month'];
+            });
 
             http_response_code(200);
             echo json_encode([
