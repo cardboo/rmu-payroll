@@ -43,27 +43,18 @@ class PayrollManager {
 		}
 	}
 
-	calculatePayroll(basicSalary, allowances, deductions, salaryCurrency = 'USD', numberOfDependents = 0) {
+	calculatePayroll(basicSalary, allowances, deductions, salaryCurrency = 'USD') {
 		let totalAllowances = 0;
 		let totalDeductions = 0;
 
 		// Calculate allowances based on original basic salary
 		allowances.forEach((allowance) => {
-			let allowanceAmount = 0;
-
 			if (allowance.is_percentage) {
 				const percentValue = parseFloat(allowance.default_amount) || parseFloat(allowance.amount) || 0;
-				allowanceAmount = (basicSalary * percentValue) / 100;
+				totalAllowances += (basicSalary * percentValue) / 100;
 			} else {
-				allowanceAmount = parseFloat(allowance.amount) || parseFloat(allowance.default_amount) || 0;
+				totalAllowances += parseFloat(allowance.amount) || parseFloat(allowance.default_amount) || 0;
 			}
-
-			// Multiply by number of dependents if this is a dependents allowance
-			if (allowance.is_dependents_allowance && numberOfDependents > 0) {
-				allowanceAmount = allowanceAmount * numberOfDependents;
-			}
-
-			totalAllowances += allowanceAmount;
 		});
 
 		// Calculate deductions based on original basic salary

@@ -63,12 +63,10 @@ try {
         }
 
        $query = "INSERT INTO allowances
-          (`allowance_code`, `allowance_name`, `description`, `is_percentage`, `default_amount`, `is_bonded`, `eligible_status`, `is_dependents_allowance`)
+          (`allowance_code`, `allowance_name`, `description`, `is_percentage`, `default_amount`, `is_bonded`, `eligible_status`)
           VALUES
-          (:code, :name, :description, :is_percentage, :default_amount, :is_bonded, :eligible_status, :is_dependents_allowance)";
+          (:code, :name, :description, :is_percentage, :default_amount, :is_bonded, :eligible_status)";
             $stmt = $db->prepare($query);
-
-            $isDependentsAllowance = isset($data->is_dependents_allowance) ? (int)$data->is_dependents_allowance : 0;
 
             $stmt->bindParam(':code', $data->allowance_code);
             $stmt->bindParam(':name', $data->allowance_name);
@@ -77,7 +75,6 @@ try {
             $stmt->bindParam(':default_amount', $data->default_amount);
             $stmt->bindParam(':is_bonded', $data->bonded);
             $stmt->bindParam(':eligible_status', $data->eligible_status);
-            $stmt->bindParam(':is_dependents_allowance', $isDependentsAllowance);
 
 
         if ($stmt->execute()) {
@@ -137,8 +134,7 @@ else if ($method === 'PUT') {
             `is_percentage` = :is_percentage,
             `default_amount` = :default_amount,
             `is_bonded` = :is_bonded,
-            `eligible_status` = :eligible_status,
-            `is_dependents_allowance` = :is_dependents_allowance
+            `eligible_status` = :eligible_status
             WHERE id = :id";
 
         $stmt = $db->prepare($query);
@@ -146,7 +142,6 @@ else if ($method === 'PUT') {
         // Ensure proper defaults and types
         $bonded = isset($data->bonded) ? (int)$data->bonded : 0;
         $eligible_status = isset($data->eligible_status) ? $data->eligible_status : 'both';
-        $isDependentsAllowance = isset($data->is_dependents_allowance) ? (int)$data->is_dependents_allowance : 0;
 
         $stmt->bindParam(':id', $data->id);
         $stmt->bindParam(':code', $data->allowance_code);
@@ -156,7 +151,6 @@ else if ($method === 'PUT') {
         $stmt->bindParam(':default_amount', $data->default_amount);
         $stmt->bindParam(':is_bonded', $bonded);
         $stmt->bindParam(':eligible_status', $eligible_status);
-        $stmt->bindParam(':is_dependents_allowance', $isDependentsAllowance);
 
         $action = 'UPDATE';
     }

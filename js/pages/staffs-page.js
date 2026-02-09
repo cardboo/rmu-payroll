@@ -204,9 +204,9 @@ updateStaffSummary() {
                   </label>
                 </div>
                 <div class="form-group" id="dependentsInputGroup" style="display: none;">
-                  <label>Number of Dependents</label>
-                  <input type="number" id="numberOfDependents" min="0" max="20" value="0" placeholder="Enter number of dependents">
-                  <small style="color: #666; font-size: 11px;">This will multiply the dependents allowance value</small>
+                  <label>Number of Dependents (max 3)</label>
+                  <input type="number" id="numberOfDependents" min="1" max="3" value="1" placeholder="1-3">
+                  <small style="color: #666; font-size: 11px;">This will multiply the dependents allowance value when saved</small>
                 </div>
 
                 <div class="form-row">
@@ -739,7 +739,10 @@ if (deductionsContainer) {
 		const accountNumber = document.getElementById("accountNumber").value.trim();
 		const onLeave = document.getElementById("onLeave").checked;
 		const hasDependents = document.getElementById("hasDependents").checked;
-		const numberOfDependents = hasDependents ? parseInt(document.getElementById("numberOfDependents").value) || 0 : 0;
+		let numberOfDependents = hasDependents ? parseInt(document.getElementById("numberOfDependents").value) || 0 : 0;
+		// Ensure max 3 dependents
+		if (numberOfDependents > 3) numberOfDependents = 3;
+		if (numberOfDependents < 0) numberOfDependents = 0;
 
 		if (
 			!staffNumber ||
@@ -972,8 +975,14 @@ document.querySelectorAll(".allowance-checkbox:checked").forEach(cb => {
 
 		if (hasDependents) {
 			dependentsInputGroup.style.display = "block";
-			if (numberOfDependents.value === "0" || numberOfDependents.value === "") {
+			// Default to 1 if not set or 0
+			const currentVal = parseInt(numberOfDependents.value) || 0;
+			if (currentVal < 1) {
 				numberOfDependents.value = "1";
+			}
+			// Ensure max 3
+			if (currentVal > 3) {
+				numberOfDependents.value = "3";
 			}
 		} else {
 			dependentsInputGroup.style.display = "none";

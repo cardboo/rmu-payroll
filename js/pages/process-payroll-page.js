@@ -206,7 +206,6 @@ class ProcessPayrollPage {
             designation: staff.designation_name || "N/A",
             basicSalary: parseFloat(staff.basic_salary) || 0,
             currency: staff.salary_currency || "GHS",
-            numberOfDependents: parseInt(staff.number_of_dependents) || 0,
             totalAllowances: 0,
             totalDeductions: 0,
             grossSalary: 0,
@@ -219,7 +218,6 @@ class ProcessPayrollPage {
               amount: parseFloat(a.amount) || 0,
               default_amount: parseFloat(a.default_amount) || 0,
               is_percentage: a.is_percentage,
-              is_dependents_allowance: a.is_dependents_allowance == 1 || a.is_dependents_allowance === true,
             })),
             deductions: deductions.map((d) => ({
               id: d.deduction_id,
@@ -262,13 +260,12 @@ class ProcessPayrollPage {
     const selectedAllowances = allowancesList.filter((a) => staffData.selectedAllowances.includes(a.id));
     const selectedDeductions = deductionsList.filter((d) => staffData.selectedDeductions.includes(d.id));
 
-    // Calculate payroll with proper currency handling and dependents multiplier
+    // Calculate payroll with proper currency handling
     const calc = this.payrollManager.calculatePayroll(
       staffData.basicSalary,
       selectedAllowances,
       selectedDeductions,
-      staffData.currency || 'GHS',
-      staffData.numberOfDependents || 0
+      staffData.currency || 'GHS'
     );
 
     staffData.totalAllowances = calc.total_allowances;

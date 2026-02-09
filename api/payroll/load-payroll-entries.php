@@ -114,8 +114,8 @@ try {
             // For each eligible staff, get their staff_allowances and staff_deductions
             $staff_data = [];
             foreach ($eligible_staff as $staff) {
-                // Get staff-specific allowances (include is_dependents_allowance flag)
-                $query = "SELECT sa.*, a.allowance_name, a.default_amount, a.is_percentage, a.is_dependents_allowance
+                // Get staff-specific allowances
+                $query = "SELECT sa.*, a.allowance_name, a.default_amount, a.is_percentage
                           FROM staff_allowances sa
                           JOIN allowances a ON sa.allowance_id = a.id
                           WHERE sa.staff_id = :staff_id AND a.is_archived = 0";
