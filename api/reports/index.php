@@ -58,7 +58,7 @@ try {
             $currentMonth = date('n');
             $currentYear = date('Y');
 
-            $payrollQuery = "SELECT COALESCE(SUM(pe.net_salary_ghs), 0) as total 
+            $payrollQuery = "SELECT COALESCE(SUM(pe.net_salary_ghs), 0) as total
                             FROM payroll_entries pe
                             JOIN payroll_periods pp ON pe.payroll_period_id = pp.id
                             WHERE pp.month = :month AND pp.year = :year";
@@ -69,7 +69,7 @@ try {
             $monthlyPayroll = $payrollStmt->fetch()['total'];
 
             // Recent activity
-            $activityQuery = "SELECT al.*, u.full_name as user_name 
+            $activityQuery = "SELECT al.*, u.full_name as user_name
                              FROM audit_logs al
                              LEFT JOIN users u ON al.user_id = u.id
                              ORDER BY al.created_at DESC
@@ -98,6 +98,8 @@ try {
                         CONCAT(s.first_name, ' ', s.last_name) as staff_name,
                         d.department_name,
                         des.designation_name,
+                        s.status as staff_status,
+                        s.salary_currency,
                         pe.basic_salary,
                         pe.total_allowances,
                         pe.total_deductions,
@@ -117,6 +119,9 @@ try {
             if ($departmentId) {
                 $query .= " AND s.department_id = :department_id";
             }
+            if ($staffStatus) {
+                $query .= " AND s.status = :staff_status";
+            }
 
             $query .= " ORDER BY d.department_name, s.last_name, s.first_name";
 
@@ -126,25 +131,65 @@ try {
             if ($departmentId) {
                 $stmt->bindParam(':department_id', $departmentId);
             }
+            if ($staffStatus) {
+                $stmt->bindParam(':staff_status', $staffStatus);
+            }
             $stmt->execute();
 
-            $entries = $stmt->fetchAll();
+            $rawEntries = $stmt->fetchAll();
 
-            // Calculate totals
-            $totalBasic = 0;
-            $totalAllowances = 0;
-            $totalDeductions = 0;
-            $totalGross = 0;
-            $totalNet = 0;
-            $totalNetGHS = 0;
+            // Process entries with currency conversion
+            $entries = [];
+            $totalBasicGhs = 0;
+            $totalAllowancesGhs = 0;
+            $totalDeductionsGhs = 0;
+            $totalGrossGhs = 0;
+            $totalNetGhs = 0;
 
-            foreach ($entries as $entry) {
-                $totalBasic += $entry['basic_salary'];
-                $totalAllowances += $entry['total_allowances'];
-                $totalDeductions += $entry['total_deductions'];
-                $totalGross += $entry['gross_salary'];
-                $totalNet += $entry['net_salary'];
-                $totalNetGHS += $entry['net_salary_ghs'];
+            foreach ($rawEntries as $entry) {
+                $isUsd = $entry['salary_currency'] === 'USD';
+                $entryRate = floatval($entry['currency_rate']) ?: $currencyRate;
+
+                $basicSalaryOriginal = floatval($entry['basic_salary']);
+                $allowancesOriginal = floatval($entry['total_allowances']);
+                $deductionsOriginal = floatval($entry['total_deductions']);
+                $grossOriginal = floatval($entry['gross_salary']);
+                $netOriginal = floatval($entry['net_salary']);
+
+                $basicSalaryGhs = $isUsd ? $basicSalaryOriginal * $entryRate : $basicSalaryOriginal;
+                $allowancesGhs = $isUsd ? $allowancesOriginal * $entryRate : $allowancesOriginal;
+                $deductionsGhs = $isUsd ? $deductionsOriginal * $entryRate : $deductionsOriginal;
+                $grossGhs = $isUsd ? $grossOriginal * $entryRate : $grossOriginal;
+                $netGhs = floatval($entry['net_salary_ghs']);
+
+                $entries[] = [
+                    'id' => $entry['id'],
+                    'staff_number' => $entry['staff_number'],
+                    'staff_name' => $entry['staff_name'],
+                    'department_name' => $entry['department_name'],
+                    'designation_name' => $entry['designation_name'],
+                    'staff_status' => $entry['staff_status'],
+                    'salary_currency' => $entry['salary_currency'],
+                    'basic_salary_original' => $basicSalaryOriginal,
+                    'basic_salary_ghs' => $basicSalaryGhs,
+                    'total_allowances_original' => $allowancesOriginal,
+                    'total_allowances_ghs' => $allowancesGhs,
+                    'total_deductions_original' => $deductionsOriginal,
+                    'total_deductions_ghs' => $deductionsGhs,
+                    'gross_salary_original' => $grossOriginal,
+                    'gross_salary_ghs' => $grossGhs,
+                    'net_salary_original' => $netOriginal,
+                    'net_salary_ghs' => $netGhs,
+                    'currency_rate' => $entryRate,
+                    'bank_name' => $entry['bank_name'],
+                    'account_number' => $entry['account_number']
+                ];
+
+                $totalBasicGhs += $basicSalaryGhs;
+                $totalAllowancesGhs += $allowancesGhs;
+                $totalDeductionsGhs += $deductionsGhs;
+                $totalGrossGhs += $grossGhs;
+                $totalNetGhs += $netGhs;
             }
 
             http_response_code(200);
@@ -153,14 +198,14 @@ try {
                 'data' => [
                     'entries' => $entries,
                     'totals' => [
-                        'basic_salary' => $totalBasic,
-                        'total_allowances' => $totalAllowances,
-                        'total_deductions' => $totalDeductions,
-                        'gross_salary' => $totalGross,
-                        'net_salary' => $totalNet,
-                        'net_salary_ghs' => $totalNetGHS,
+                        'basic_salary_ghs' => $totalBasicGhs,
+                        'total_allowances_ghs' => $totalAllowancesGhs,
+                        'total_deductions_ghs' => $totalDeductionsGhs,
+                        'gross_salary_ghs' => $totalGrossGhs,
+                        'net_salary_ghs' => $totalNetGhs,
                         'count' => count($entries)
                     ],
+                    'currency_rate' => $currencyRate,
                     'period' => [
                         'month' => $month,
                         'year' => $year
@@ -171,35 +216,90 @@ try {
             $month = isset($_GET['month']) ? $_GET['month'] : date('n');
             $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
 
-            $query = "SELECT 
+            // Get individual entries to handle currency conversion properly
+            $query = "SELECT
+                        d.id as department_id,
                         d.department_name,
-                        COUNT(pe.id) as staff_count,
-                        SUM(pe.basic_salary) as total_basic,
-                        SUM(pe.total_allowances) as total_allowances,
-                        SUM(pe.total_deductions) as total_deductions,
-                        SUM(pe.gross_salary) as total_gross,
-                        SUM(pe.net_salary) as total_net,
-                        SUM(pe.net_salary_ghs) as total_net_ghs
+                        s.salary_currency,
+                        pe.basic_salary,
+                        pe.total_allowances,
+                        pe.total_deductions,
+                        pe.gross_salary,
+                        pe.net_salary,
+                        pe.net_salary_ghs,
+                        pe.currency_rate
                       FROM payroll_entries pe
                       JOIN payroll_periods pp ON pe.payroll_period_id = pp.id
                       JOIN staffs s ON pe.staff_id = s.id
                       LEFT JOIN departments d ON s.department_id = d.id
                       WHERE pp.month = :month AND pp.year = :year
-                      GROUP BY d.id, d.department_name
-                      ORDER BY total_net_ghs DESC";
+                      ORDER BY d.department_name";
 
             $stmt = $db->prepare($query);
             $stmt->bindParam(':month', $month);
             $stmt->bindParam(':year', $year);
             $stmt->execute();
+            $entries = $stmt->fetchAll();
 
-            $departments = $stmt->fetchAll();
+            // Aggregate by department with currency conversion
+            $deptMap = [];
+            foreach ($entries as $entry) {
+                $deptId = $entry['department_id'] ?: 'unassigned';
+                $deptName = $entry['department_name'] ?: 'Unassigned';
+                $isUsd = $entry['salary_currency'] === 'USD';
+                $entryRate = floatval($entry['currency_rate']) ?: $currencyRate;
+
+                if (!isset($deptMap[$deptId])) {
+                    $deptMap[$deptId] = [
+                        'department_name' => $deptName,
+                        'staff_count' => 0,
+                        'total_basic_ghs' => 0,
+                        'total_allowances_ghs' => 0,
+                        'total_deductions_ghs' => 0,
+                        'total_gross_ghs' => 0,
+                        'total_net_ghs' => 0
+                    ];
+                }
+
+                $deptMap[$deptId]['staff_count']++;
+                $deptMap[$deptId]['total_basic_ghs'] += $isUsd ? floatval($entry['basic_salary']) * $entryRate : floatval($entry['basic_salary']);
+                $deptMap[$deptId]['total_allowances_ghs'] += $isUsd ? floatval($entry['total_allowances']) * $entryRate : floatval($entry['total_allowances']);
+                $deptMap[$deptId]['total_deductions_ghs'] += $isUsd ? floatval($entry['total_deductions']) * $entryRate : floatval($entry['total_deductions']);
+                $deptMap[$deptId]['total_gross_ghs'] += $isUsd ? floatval($entry['gross_salary']) * $entryRate : floatval($entry['gross_salary']);
+                $deptMap[$deptId]['total_net_ghs'] += floatval($entry['net_salary_ghs']);
+            }
+
+            // Convert to array and sort by net salary descending
+            $departments = array_values($deptMap);
+            usort($departments, function($a, $b) {
+                return $b['total_net_ghs'] <=> $a['total_net_ghs'];
+            });
+
+            // Calculate grand totals
+            $grandTotals = [
+                'staff_count' => 0,
+                'total_basic_ghs' => 0,
+                'total_allowances_ghs' => 0,
+                'total_deductions_ghs' => 0,
+                'total_gross_ghs' => 0,
+                'total_net_ghs' => 0
+            ];
+            foreach ($departments as $dept) {
+                $grandTotals['staff_count'] += $dept['staff_count'];
+                $grandTotals['total_basic_ghs'] += $dept['total_basic_ghs'];
+                $grandTotals['total_allowances_ghs'] += $dept['total_allowances_ghs'];
+                $grandTotals['total_deductions_ghs'] += $dept['total_deductions_ghs'];
+                $grandTotals['total_gross_ghs'] += $dept['total_gross_ghs'];
+                $grandTotals['total_net_ghs'] += $dept['total_net_ghs'];
+            }
 
             http_response_code(200);
             echo json_encode([
                 'success' => true,
                 'data' => [
                     'departments' => $departments,
+                    'totals' => $grandTotals,
+                    'currency_rate' => $currencyRate,
                     'period' => [
                         'month' => $month,
                         'year' => $year
@@ -209,7 +309,7 @@ try {
         } else if ($type === 'yearly_comparison') {
             $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
 
-            $query = "SELECT 
+            $query = "SELECT
                         pp.month,
                         pp.year,
                         COUNT(pe.id) as staff_count,
@@ -246,7 +346,7 @@ try {
                 exit();
             }
 
-            $query = "SELECT 
+            $query = "SELECT
                         pp.month,
                         pp.year,
                         pe.basic_salary,
@@ -290,43 +390,125 @@ try {
             $month = isset($_GET['month']) ? $_GET['month'] : date('n');
             $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
 
-            // Get allowances breakdown
-            $allowQuery = "SELECT 
+            // Get allowances with currency info for proper conversion
+            $allowQuery = "SELECT
+                            a.id as allowance_id,
                             a.allowance_name,
-                            COUNT(pa.id) as usage_count,
-                            SUM(pa.amount) as total_amount
+                            pa.amount,
+                            s.salary_currency,
+                            pe.currency_rate
                           FROM payroll_allowances pa
                           JOIN allowances a ON pa.allowance_id = a.id
                           JOIN payroll_entries pe ON pa.payroll_entry_id = pe.id
+                          JOIN staffs s ON pe.staff_id = s.id
                           JOIN payroll_periods pp ON pe.payroll_period_id = pp.id
-                          WHERE pp.month = :month AND pp.year = :year
-                          GROUP BY a.id, a.allowance_name
-                          ORDER BY total_amount DESC";
+                          WHERE pp.month = :month AND pp.year = :year";
+
+            if ($departmentId) {
+                $allowQuery .= " AND s.department_id = :department_id";
+            }
+            if ($staffStatus) {
+                $allowQuery .= " AND s.status = :staff_status";
+            }
 
             $allowStmt = $db->prepare($allowQuery);
             $allowStmt->bindParam(':month', $month);
             $allowStmt->bindParam(':year', $year);
+            if ($departmentId) {
+                $allowStmt->bindParam(':department_id', $departmentId);
+            }
+            if ($staffStatus) {
+                $allowStmt->bindParam(':staff_status', $staffStatus);
+            }
             $allowStmt->execute();
-            $allowances = $allowStmt->fetchAll();
+            $allowanceEntries = $allowStmt->fetchAll();
 
-            // Get deductions breakdown
-            $deductQuery = "SELECT 
+            // Aggregate allowances with currency conversion
+            $allowanceMap = [];
+            foreach ($allowanceEntries as $entry) {
+                $id = $entry['allowance_id'];
+                $name = $entry['allowance_name'];
+                $isUsd = $entry['salary_currency'] === 'USD';
+                $entryRate = floatval($entry['currency_rate']) ?: $currencyRate;
+                $amountGhs = $isUsd ? floatval($entry['amount']) * $entryRate : floatval($entry['amount']);
+
+                if (!isset($allowanceMap[$id])) {
+                    $allowanceMap[$id] = [
+                        'allowance_name' => $name,
+                        'usage_count' => 0,
+                        'total_amount_ghs' => 0
+                    ];
+                }
+                $allowanceMap[$id]['usage_count']++;
+                $allowanceMap[$id]['total_amount_ghs'] += $amountGhs;
+            }
+
+            $allowances = array_values($allowanceMap);
+            usort($allowances, function($a, $b) {
+                return $b['total_amount_ghs'] <=> $a['total_amount_ghs'];
+            });
+
+            // Get deductions with currency info for proper conversion
+            $deductQuery = "SELECT
+                             d.id as deduction_id,
                              d.deduction_name,
-                             COUNT(pd.id) as usage_count,
-                             SUM(pd.amount) as total_amount
+                             pd.amount,
+                             s.salary_currency,
+                             pe.currency_rate
                            FROM payroll_deductions pd
                            JOIN deductions d ON pd.deduction_id = d.id
                            JOIN payroll_entries pe ON pd.payroll_entry_id = pe.id
+                           JOIN staffs s ON pe.staff_id = s.id
                            JOIN payroll_periods pp ON pe.payroll_period_id = pp.id
-                           WHERE pp.month = :month AND pp.year = :year
-                           GROUP BY d.id, d.deduction_name
-                           ORDER BY total_amount DESC";
+                           WHERE pp.month = :month AND pp.year = :year";
+
+            if ($departmentId) {
+                $deductQuery .= " AND s.department_id = :department_id";
+            }
+            if ($staffStatus) {
+                $deductQuery .= " AND s.status = :staff_status";
+            }
 
             $deductStmt = $db->prepare($deductQuery);
             $deductStmt->bindParam(':month', $month);
             $deductStmt->bindParam(':year', $year);
+            if ($departmentId) {
+                $deductStmt->bindParam(':department_id', $departmentId);
+            }
+            if ($staffStatus) {
+                $deductStmt->bindParam(':staff_status', $staffStatus);
+            }
             $deductStmt->execute();
-            $deductions = $deductStmt->fetchAll();
+            $deductionEntries = $deductStmt->fetchAll();
+
+            // Aggregate deductions with currency conversion
+            $deductionMap = [];
+            foreach ($deductionEntries as $entry) {
+                $id = $entry['deduction_id'];
+                $name = $entry['deduction_name'];
+                $isUsd = $entry['salary_currency'] === 'USD';
+                $entryRate = floatval($entry['currency_rate']) ?: $currencyRate;
+                $amountGhs = $isUsd ? floatval($entry['amount']) * $entryRate : floatval($entry['amount']);
+
+                if (!isset($deductionMap[$id])) {
+                    $deductionMap[$id] = [
+                        'deduction_name' => $name,
+                        'usage_count' => 0,
+                        'total_amount_ghs' => 0
+                    ];
+                }
+                $deductionMap[$id]['usage_count']++;
+                $deductionMap[$id]['total_amount_ghs'] += $amountGhs;
+            }
+
+            $deductions = array_values($deductionMap);
+            usort($deductions, function($a, $b) {
+                return $b['total_amount_ghs'] <=> $a['total_amount_ghs'];
+            });
+
+            // Calculate totals
+            $totalAllowancesGhs = array_sum(array_column($allowances, 'total_amount_ghs'));
+            $totalDeductionsGhs = array_sum(array_column($deductions, 'total_amount_ghs'));
 
             http_response_code(200);
             echo json_encode([
@@ -334,6 +516,11 @@ try {
                 'data' => [
                     'allowances' => $allowances,
                     'deductions' => $deductions,
+                    'totals' => [
+                        'allowances_ghs' => $totalAllowancesGhs,
+                        'deductions_ghs' => $totalDeductionsGhs
+                    ],
+                    'currency_rate' => $currencyRate,
                     'period' => [
                         'month' => $month,
                         'year' => $year
@@ -788,3 +975,4 @@ try {
         'message' => 'An unexpected error occurred'
     ]);
 }
+?>

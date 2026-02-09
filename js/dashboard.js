@@ -1395,42 +1395,39 @@ function displayPayrollSummary(data) {
     "December",
   ]
 
+  // Helper function to format currency
+  const formatGhs = (amount) => `GHS ${Number.parseFloat(amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+  const formatUsd = (amount) => `$${Number.parseFloat(amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+
   reportContent.innerHTML = `
     <div class="card" style="background-color: #f8fafc; padding: 20px; margin-bottom: 24px;">
       <h4 style="margin-bottom: 16px;">Payroll Summary - ${monthNames[data.period.month - 1]} ${data.period.year}</h4>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Exchange Rate: 1 USD = ${Number.parseFloat(data.currency_rate).toFixed(4)} GHS</p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
         <div>
           <div style="font-size: 12px; color: #64748b;">Total Staff</div>
           <div style="font-size: 24px; font-weight: 700;">${data.totals.count}</div>
         </div>
         <div>
-          <div style="font-size: 12px; color: #64748b;">Total Basic Salary</div>
-          <div style="font-size: 24px; font-weight: 700; color: #10b981;">$${Number.parseFloat(
-            data.totals.basic_salary,
-          ).toLocaleString()}</div>
+          <div style="font-size: 12px; color: #64748b;">Total Basic Salary (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #2563eb;">${formatGhs(data.totals.basic_salary_ghs)}</div>
         </div>
         <div>
-          <div style="font-size: 12px; color: #64748b;">Total Allowances</div>
-          <div style="font-size: 24px; font-weight: 700; color: #10b981;">$${Number.parseFloat(
-            data.totals.total_allowances,
-          ).toLocaleString()}</div>
+          <div style="font-size: 12px; color: #64748b;">Total Allowances (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #10b981;">${formatGhs(data.totals.total_allowances_ghs)}</div>
         </div>
         <div>
-          <div style="font-size: 12px; color: #64748b;">Total Deductions</div>
-          <div style="font-size: 24px; font-weight: 700; color: #ef4444;">$${Number.parseFloat(
-            data.totals.total_deductions,
-          ).toLocaleString()}</div>
+          <div style="font-size: 12px; color: #64748b;">Total Deductions (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #ef4444;">${formatGhs(data.totals.total_deductions_ghs)}</div>
         </div>
         <div>
-          <div style="font-size: 12px; color: #64748b;">Total Net (GHS)</div>
-          <div style="font-size: 24px; font-weight: 700; color: #2563eb;">GHS ${Number.parseFloat(
-            data.totals.net_salary_ghs,
-          ).toLocaleString()}</div>
+          <div style="font-size: 12px; color: #64748b;">Total Net Salary (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">${formatGhs(data.totals.net_salary_ghs)}</div>
         </div>
       </div>
     </div>
-    
-    <div class="table-container">
+
+    <div class="table-container" style="overflow-x: auto;">
       <table>
         <thead>
           <tr>
@@ -1438,34 +1435,62 @@ function displayPayrollSummary(data) {
             <th>Name</th>
             <th>Department</th>
             <th>Designation</th>
-            <th>Basic Salary</th>
-            <th>Allowances</th>
-            <th>Deductions</th>
-            <th>Net Salary (GHS)</th>
+            <th>Status</th>
+            <th style="text-align: right;">Basic Salary (GHS)</th>
+            <th style="text-align: right;">Allowances (GHS)</th>
+            <th style="text-align: right;">Deductions (GHS)</th>
+            <th style="text-align: right;">Net Salary (GHS)</th>
             <th>Bank</th>
             <th>Account No.</th>
           </tr>
         </thead>
         <tbody>
           ${data.entries
-            .map(
-              (entry) => `
+            .map(entry => {
+              const isUsd = entry.salary_currency === 'USD'
+
+              const basicSalaryDisplay = isUsd
+                ? `${formatGhs(entry.basic_salary_ghs)}<br><span style="font-size: 10px; color: #1976d2;">(${formatUsd(entry.basic_salary_original)})</span>`
+                : formatGhs(entry.basic_salary_ghs)
+
+              const allowancesDisplay = isUsd
+                ? `${formatGhs(entry.total_allowances_ghs)}<br><span style="font-size: 10px; color: #1976d2;">(${formatUsd(entry.total_allowances_original)})</span>`
+                : formatGhs(entry.total_allowances_ghs)
+
+              const deductionsDisplay = isUsd
+                ? `${formatGhs(entry.total_deductions_ghs)}<br><span style="font-size: 10px; color: #1976d2;">(${formatUsd(entry.total_deductions_original)})</span>`
+                : formatGhs(entry.total_deductions_ghs)
+
+              const netSalaryDisplay = isUsd
+                ? `${formatGhs(entry.net_salary_ghs)}<br><span style="font-size: 10px; color: #1976d2;">(${formatUsd(entry.net_salary_original)})</span>`
+                : formatGhs(entry.net_salary_ghs)
+
+              return `
             <tr>
               <td>${entry.staff_number}</td>
               <td>${entry.staff_name}</td>
               <td>${entry.department_name || "N/A"}</td>
               <td>${entry.designation_name || "N/A"}</td>
-              <td>$${Number.parseFloat(entry.basic_salary).toFixed(2)}</td>
-              <td style="color: #10b981;">$${Number.parseFloat(entry.total_allowances).toFixed(2)}</td>
-              <td style="color: #ef4444;">$${Number.parseFloat(entry.total_deductions).toFixed(2)}</td>
-              <td><strong>GHS ${Number.parseFloat(entry.net_salary_ghs).toLocaleString()}</strong></td>
+              <td><span style="padding: 2px 8px; border-radius: 4px; font-size: 11px; background: ${entry.staff_status === 'permanent' ? '#dbeafe' : '#fef3c7'}; color: ${entry.staff_status === 'permanent' ? '#1e40af' : '#92400e'};">${entry.staff_status}</span></td>
+              <td style="text-align: right;">${basicSalaryDisplay}</td>
+              <td style="text-align: right; color: #10b981;">${allowancesDisplay}</td>
+              <td style="text-align: right; color: #ef4444;">${deductionsDisplay}</td>
+              <td style="text-align: right; font-weight: bold; color: #7c3aed;">${netSalaryDisplay}</td>
               <td>${entry.bank_name || "N/A"}</td>
               <td>${entry.account_number || "N/A"}</td>
             </tr>
-          `,
-            )
-            .join("")}
+          `}).join("")}
         </tbody>
+        <tfoot style="background-color: #f1f5f9; font-weight: bold;">
+          <tr>
+            <td colspan="5" style="text-align: right;">TOTALS:</td>
+            <td style="text-align: right;">${formatGhs(data.totals.basic_salary_ghs)}</td>
+            <td style="text-align: right; color: #10b981;">${formatGhs(data.totals.total_allowances_ghs)}</td>
+            <td style="text-align: right; color: #ef4444;">${formatGhs(data.totals.total_deductions_ghs)}</td>
+            <td style="text-align: right; color: #7c3aed;">${formatGhs(data.totals.net_salary_ghs)}</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   `
@@ -1489,24 +1514,44 @@ function displayDepartmentPayroll(data) {
     "December",
   ]
 
+  // Helper function to format currency
+  const formatGhs = (amount) => `GHS ${Number.parseFloat(amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+
   reportContent.innerHTML = `
     <div class="card" style="background-color: #f8fafc; padding: 20px; margin-bottom: 24px;">
-      <h4 style="margin-bottom: 16px;">Department Payroll - ${
-        monthNames[data.period.month - 1]
-      } ${data.period.year}</h4>
+      <h4 style="margin-bottom: 16px;">Department Payroll - ${monthNames[data.period.month - 1]} ${data.period.year}</h4>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Exchange Rate: 1 USD = ${Number.parseFloat(data.currency_rate).toFixed(4)} GHS (All amounts converted to GHS)</p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+        <div>
+          <div style="font-size: 12px; color: #64748b;">Total Staff</div>
+          <div style="font-size: 24px; font-weight: 700;">${data.totals.staff_count}</div>
+        </div>
+        <div>
+          <div style="font-size: 12px; color: #64748b;">Total Basic Salary (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #2563eb;">${formatGhs(data.totals.total_basic_ghs)}</div>
+        </div>
+        <div>
+          <div style="font-size: 12px; color: #64748b;">Total Gross (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">${formatGhs(data.totals.total_gross_ghs)}</div>
+        </div>
+        <div>
+          <div style="font-size: 12px; color: #64748b;">Total Net (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #059669;">${formatGhs(data.totals.total_net_ghs)}</div>
+        </div>
+      </div>
     </div>
-    
-    <div class="table-container">
+
+    <div class="table-container" style="overflow-x: auto;">
       <table>
         <thead>
           <tr>
             <th>Department</th>
-            <th>Staff Count</th>
-            <th>Total Basic</th>
-            <th>Total Allowances</th>
-            <th>Total Deductions</th>
-            <th>Total Gross</th>
-            <th>Total Net (GHS)</th>
+            <th style="text-align: center;">Staff Count</th>
+            <th style="text-align: right;">Total Basic (GHS)</th>
+            <th style="text-align: right;">Total Allowances (GHS)</th>
+            <th style="text-align: right;">Total Deductions (GHS)</th>
+            <th style="text-align: right;">Total Gross (GHS)</th>
+            <th style="text-align: right;">Total Net (GHS)</th>
           </tr>
         </thead>
         <tbody>
@@ -1515,17 +1560,28 @@ function displayDepartmentPayroll(data) {
               (dept) => `
             <tr>
               <td><strong>${dept.department_name || "Unassigned"}</strong></td>
-              <td>${dept.staff_count}</td>
-              <td>$${Number.parseFloat(dept.total_basic).toLocaleString()}</td>
-              <td style="color: #10b981;">$${Number.parseFloat(dept.total_allowances).toLocaleString()}</td>
-              <td style="color: #ef4444;">$${Number.parseFloat(dept.total_deductions).toLocaleString()}</td>
-              <td>$${Number.parseFloat(dept.total_gross).toLocaleString()}</td>
-              <td><strong>GHS ${Number.parseFloat(dept.total_net_ghs).toLocaleString()}</strong></td>
+              <td style="text-align: center;">${dept.staff_count}</td>
+              <td style="text-align: right;">${formatGhs(dept.total_basic_ghs)}</td>
+              <td style="text-align: right; color: #10b981;">${formatGhs(dept.total_allowances_ghs)}</td>
+              <td style="text-align: right; color: #ef4444;">${formatGhs(dept.total_deductions_ghs)}</td>
+              <td style="text-align: right; color: #7c3aed;">${formatGhs(dept.total_gross_ghs)}</td>
+              <td style="text-align: right; font-weight: bold; color: #059669;">${formatGhs(dept.total_net_ghs)}</td>
             </tr>
           `,
             )
             .join("")}
         </tbody>
+        <tfoot style="background-color: #f1f5f9; font-weight: bold;">
+          <tr>
+            <td style="text-align: right;">GRAND TOTALS:</td>
+            <td style="text-align: center;">${data.totals.staff_count}</td>
+            <td style="text-align: right;">${formatGhs(data.totals.total_basic_ghs)}</td>
+            <td style="text-align: right; color: #10b981;">${formatGhs(data.totals.total_allowances_ghs)}</td>
+            <td style="text-align: right; color: #ef4444;">${formatGhs(data.totals.total_deductions_ghs)}</td>
+            <td style="text-align: right; color: #7c3aed;">${formatGhs(data.totals.total_gross_ghs)}</td>
+            <td style="text-align: right; color: #059669;">${formatGhs(data.totals.total_net_ghs)}</td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   `
@@ -1620,13 +1676,25 @@ function displayAllowancesDeductions(data) {
     "December",
   ]
 
+  // Helper function to format currency
+  const formatGhs = (amount) => `GHS ${Number.parseFloat(amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+
   reportContent.innerHTML = `
     <div class="card" style="background-color: #f8fafc; padding: 20px; margin-bottom: 24px;">
-      <h4 style="margin-bottom: 16px;">Allowances & Deductions Breakdown - ${
-        monthNames[data.period.month - 1]
-      } ${data.period.year}</h4>
+      <h4 style="margin-bottom: 16px;">Allowances & Deductions Breakdown - ${monthNames[data.period.month - 1]} ${data.period.year}</h4>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Exchange Rate: 1 USD = ${Number.parseFloat(data.currency_rate).toFixed(4)} GHS (All amounts converted to GHS)</p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+        <div>
+          <div style="font-size: 12px; color: #64748b;">Total Allowances (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #10b981;">${formatGhs(data.totals.allowances_ghs)}</div>
+        </div>
+        <div>
+          <div style="font-size: 12px; color: #64748b;">Total Deductions (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #ef4444;">${formatGhs(data.totals.deductions_ghs)}</div>
+        </div>
+      </div>
     </div>
-    
+
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px;">
       <div>
         <h5 style="margin-bottom: 16px; color: #10b981;">Allowances</h5>
@@ -1635,8 +1703,8 @@ function displayAllowancesDeductions(data) {
             <thead>
               <tr>
                 <th>Allowance</th>
-                <th>Usage Count</th>
-                <th>Total Amount</th>
+                <th style="text-align: center;">Usage Count</th>
+                <th style="text-align: right;">Total Amount (GHS)</th>
               </tr>
             </thead>
             <tbody>
@@ -1647,10 +1715,8 @@ function displayAllowancesDeductions(data) {
                         (allow) => `
                 <tr>
                   <td>${allow.allowance_name}</td>
-                  <td>${allow.usage_count}</td>
-                  <td style="color: #10b981;"><strong>$${Number.parseFloat(
-                    allow.total_amount || 0,
-                  ).toLocaleString()}</strong></td>
+                  <td style="text-align: center;">${allow.usage_count}</td>
+                  <td style="text-align: right; color: #10b981;"><strong>${formatGhs(allow.total_amount_ghs || 0)}</strong></td>
                 </tr>
               `,
                       )
@@ -1658,10 +1724,18 @@ function displayAllowancesDeductions(data) {
                   : '<tr><td colspan="3" style="text-align: center; padding: 20px;">No allowances data</td></tr>'
               }
             </tbody>
+            ${(data.allowances || []).length > 0 ? `
+            <tfoot style="background-color: #f1f5f9; font-weight: bold;">
+              <tr>
+                <td colspan="2" style="text-align: right;">TOTAL:</td>
+                <td style="text-align: right; color: #10b981;">${formatGhs(data.totals.allowances_ghs)}</td>
+              </tr>
+            </tfoot>
+            ` : ''}
           </table>
         </div>
       </div>
-      
+
       <div>
         <h5 style="margin-bottom: 16px; color: #ef4444;">Deductions</h5>
         <div class="table-container">
@@ -1669,8 +1743,8 @@ function displayAllowancesDeductions(data) {
             <thead>
               <tr>
                 <th>Deduction</th>
-                <th>Usage Count</th>
-                <th>Total Amount</th>
+                <th style="text-align: center;">Usage Count</th>
+                <th style="text-align: right;">Total Amount (GHS)</th>
               </tr>
             </thead>
             <tbody>
@@ -1681,10 +1755,8 @@ function displayAllowancesDeductions(data) {
                         (deduct) => `
                 <tr>
                   <td>${deduct.deduction_name}</td>
-                  <td>${deduct.usage_count}</td>
-                  <td style="color: #ef4444;"><strong>$${Number.parseFloat(
-                    deduct.total_amount || 0,
-                  ).toLocaleString()}</strong></td>
+                  <td style="text-align: center;">${deduct.usage_count}</td>
+                  <td style="text-align: right; color: #ef4444;"><strong>${formatGhs(deduct.total_amount_ghs || 0)}</strong></td>
                 </tr>
               `,
                       )
@@ -1692,6 +1764,14 @@ function displayAllowancesDeductions(data) {
                   : '<tr><td colspan="3" style="text-align: center; padding: 20px;">No deductions data</td></tr>'
               }
             </tbody>
+            ${(data.deductions || []).length > 0 ? `
+            <tfoot style="background-color: #f1f5f9; font-weight: bold;">
+              <tr>
+                <td colspan="2" style="text-align: right;">TOTAL:</td>
+                <td style="text-align: right; color: #ef4444;">${formatGhs(data.totals.deductions_ghs)}</td>
+              </tr>
+            </tfoot>
+            ` : ''}
           </table>
         </div>
       </div>
