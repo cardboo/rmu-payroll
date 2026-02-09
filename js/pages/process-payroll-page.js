@@ -6,6 +6,9 @@ class ProcessPayrollPage {
     this.selectedMonth = null;
     this.selectedYear = null;
     this.isModalLoading = false;
+    this.isSubmitting = false;
+    this.listenersAttached = false;
+    this.isPeriodAlreadyProcessed = false;
 
     if (!this.payrollManager) {
       console.error("[v0] PayrollManager not available. Ensure payroll.js is loaded.");
@@ -171,49 +174,25 @@ class ProcessPayrollPage {
       }
 
       if (loadRes.entries_exist) {
-        // Path A: Entries already exist - load from payroll tables
-        this.eligibleStaff = loadRes.data.map((item) => {
-          const entry = item.payroll_entry;
-          const allowances = item.allowances || [];
-          const deductions = item.deductions || [];
+        // Path A: Entries already exist - payroll already processed for this period
+        this.isPeriodAlreadyProcessed = true;
 
-          return {
-            id: entry.staff_id,
-            payroll_entry_id: entry.id,
-            staffNumber: entry.staff_number,
-            name: `${entry.first_name} ${entry.last_name}`,
-            department: entry.department_name || "N/A",
-            designation: entry.designation_name || "N/A",
-            basicSalary: parseFloat(entry.basic_salary) || 0,
-            currency: entry.salary_currency || "GHS",
-            totalAllowances: parseFloat(entry.total_allowances) || 0,
-            totalDeductions: parseFloat(entry.total_deductions) || 0,
-            grossSalary: parseFloat(entry.gross_salary) || 0,
-            netSalary: parseFloat(entry.net_salary) || 0,
-            netSalaryGHS: parseFloat(entry.net_salary_ghs) || 0,
-            currencyRate: parseFloat(entry.currency_rate) || 1.0,
-            allowances: allowances.map((a) => ({
-              id: a.allowance_id,
-              allowance_name: a.allowance_name,
-              amount: parseFloat(a.amount) || 0,
-              is_percentage: a.is_percentage,
-              percentage_value: parseFloat(a.percentage_value) || 0,
-            })),
-            deductions: deductions.map((d) => ({
-              id: d.deduction_id,
-              deduction_name: d.deduction_name,
-              amount: parseFloat(d.amount) || 0,
-              is_percentage: d.is_percentage,
-              percentage_value: parseFloat(d.percentage_value) || 0,
-            })),
-            selectedAllowances: allowances.map((a) => a.allowance_id),
-            selectedDeductions: deductions.map((d) => d.deduction_id),
-            is_existing_entry: true,
-          };
-        });
-      } else {
-        // Path B: Entries don't exist - load eligible staff and their staff_allowances/staff_deductions
-        this.eligibleStaff = loadRes.data.map((item) => {
+        // Get month name for the message
+        const monthNames = ["January", "February", "March", "April", "May", "June",
+          "July", "August", "September", "October", "November", "December"];
+        const monthName = monthNames[this.selectedMonth - 1];
+
+        // Show info message and prevent re-submission
+        alert(`Payroll for ${monthName} ${this.selectedYear} has already been processed.\n\nPlease check the Reports section for details.`);
+
+        // Reset to empty state - don't allow viewing/editing already processed payroll from here
+        document.getElementById("emptyState").style.display = "block";
+        document.getElementById("bulkPayrollContainer").style.display = "none";
+        return;
+      }
+
+      // Path B: Entries don't exist - load eligible staff and their staff_allowances/staff_deductions
+      this.eligibleStaff = loadRes.data.map((item) => {
           const staff = item.staff;
           const allowances = item.allowances || [];
           const deductions = item.deductions || [];
@@ -227,6 +206,7 @@ class ProcessPayrollPage {
             designation: staff.designation_name || "N/A",
             basicSalary: parseFloat(staff.basic_salary) || 0,
             currency: staff.salary_currency || "GHS",
+            numberOfDependents: parseInt(staff.number_of_dependents) || 0,
             totalAllowances: 0,
             totalDeductions: 0,
             grossSalary: 0,
@@ -239,6 +219,7 @@ class ProcessPayrollPage {
               amount: parseFloat(a.amount) || 0,
               default_amount: parseFloat(a.default_amount) || 0,
               is_percentage: a.is_percentage,
+              is_dependents_allowance: a.is_dependents_allowance == 1 || a.is_dependents_allowance === true,
             })),
             deductions: deductions.map((d) => ({
               id: d.deduction_id,
@@ -253,11 +234,10 @@ class ProcessPayrollPage {
           };
         });
 
-        // Calculate payroll for new entries
-        this.eligibleStaff.forEach((staff) => {
-          this.calculateStaffPayroll(staff);
-        });
-      }
+      // Calculate payroll for new entries
+      this.eligibleStaff.forEach((staff) => {
+        this.calculateStaffPayroll(staff);
+      });
 
       if (this.eligibleStaff.length === 0) {
         alert("No eligible staff for this period");
@@ -282,12 +262,13 @@ class ProcessPayrollPage {
     const selectedAllowances = allowancesList.filter((a) => staffData.selectedAllowances.includes(a.id));
     const selectedDeductions = deductionsList.filter((d) => staffData.selectedDeductions.includes(d.id));
 
-    // Calculate payroll with proper currency handling
+    // Calculate payroll with proper currency handling and dependents multiplier
     const calc = this.payrollManager.calculatePayroll(
       staffData.basicSalary,
       selectedAllowances,
       selectedDeductions,
-      staffData.currency || 'GHS'
+      staffData.currency || 'GHS',
+      staffData.numberOfDependents || 0
     );
 
     staffData.totalAllowances = calc.total_allowances;
@@ -732,6 +713,11 @@ class ProcessPayrollPage {
 
   /* -------- SUBMIT BULK PAYROLL -------- */
   async submitBulkPayroll() {
+    // Prevent double-submission
+    if (this.isSubmitting) {
+      return;
+    }
+
     const apiService = this.getApiService();
     const apiEndpoints = this.getApiEndpoints();
 
@@ -743,6 +729,9 @@ class ProcessPayrollPage {
     if (!confirm(`Submit payroll for ${this.eligibleStaff.length} staff members?`)) {
       return;
     }
+
+    // Set submitting flag
+    this.isSubmitting = true;
 
     try {
       const payrollData = this.eligibleStaff.map((staff) => ({
@@ -801,11 +790,20 @@ class ProcessPayrollPage {
     } catch (error) {
       console.error("[v0] Error submitting payroll:", error);
       alert(`Error submitting payroll: ${error.message}`);
+    } finally {
+      // Reset submitting flag
+      this.isSubmitting = false;
     }
   }
 
   /* -------- ATTACH EVENT LISTENERS -------- */
   attachEventListeners() {
+    // Prevent attaching listeners multiple times
+    if (this.listenersAttached) {
+      return;
+    }
+    this.listenersAttached = true;
+
     document.getElementById("loadStaffBtn")?.addEventListener("click", () => {
       this.loadEligibleStaff();
     });

@@ -195,7 +195,20 @@ updateStaffSummary() {
                     On Bonded or Study Leave
                   </label>
                 </div>
-                
+
+                <!-- Dependents section -->
+                <div class="form-group">
+                  <label style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="hasDependents" onchange="staffsPage.toggleDependentsInput()">
+                    Has Dependents
+                  </label>
+                </div>
+                <div class="form-group" id="dependentsInputGroup" style="display: none;">
+                  <label>Number of Dependents</label>
+                  <input type="number" id="numberOfDependents" min="0" max="20" value="0" placeholder="Enter number of dependents">
+                  <small style="color: #666; font-size: 11px;">This will multiply the dependents allowance value</small>
+                </div>
+
                 <div class="form-row">
                   <div class="form-group">
                     <label>Basic Salary (<span id="currencyLabel">USD</span>) *</label>
@@ -599,6 +612,13 @@ if (deductionsContainer) {
 			document.getElementById("bankName").value = staff.bank_name || "";
 			document.getElementById("accountNumber").value =
 				staff.account_number || "";
+
+			// Handle dependents field
+			const numberOfDependents = parseInt(staff.number_of_dependents) || 0;
+			document.getElementById("hasDependents").checked = numberOfDependents > 0;
+			document.getElementById("numberOfDependents").value = numberOfDependents;
+			document.getElementById("dependentsInputGroup").style.display = numberOfDependents > 0 ? "block" : "none";
+
 			this.updateCurrencyLabel();
 
 			this.populateAllowancesAndDeductions();
@@ -718,6 +738,8 @@ if (deductionsContainer) {
 		const bankName = document.getElementById("bankName").value.trim();
 		const accountNumber = document.getElementById("accountNumber").value.trim();
 		const onLeave = document.getElementById("onLeave").checked;
+		const hasDependents = document.getElementById("hasDependents").checked;
+		const numberOfDependents = hasDependents ? parseInt(document.getElementById("numberOfDependents").value) || 0 : 0;
 
 		if (
 			!staffNumber ||
@@ -812,6 +834,7 @@ document.querySelectorAll(".allowance-checkbox:checked").forEach(cb => {
 			bank_name: bankName || null,
 			account_number: accountNumber || null,
 			on_bonded_or_study_leave: onLeave,
+			number_of_dependents: numberOfDependents,
 			allowances: selectedAllowances,
 			deductions: selectedDeductions,
 		};
@@ -939,6 +962,22 @@ document.querySelectorAll(".allowance-checkbox:checked").forEach(cb => {
 			currencyLabel.textContent = "USD";
 		} else {
 			currencyLabel.textContent = "GHS";
+		}
+	}
+
+	toggleDependentsInput() {
+		const hasDependents = document.getElementById("hasDependents").checked;
+		const dependentsInputGroup = document.getElementById("dependentsInputGroup");
+		const numberOfDependents = document.getElementById("numberOfDependents");
+
+		if (hasDependents) {
+			dependentsInputGroup.style.display = "block";
+			if (numberOfDependents.value === "0" || numberOfDependents.value === "") {
+				numberOfDependents.value = "1";
+			}
+		} else {
+			dependentsInputGroup.style.display = "none";
+			numberOfDependents.value = "0";
 		}
 	}
 

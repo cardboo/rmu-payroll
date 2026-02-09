@@ -121,10 +121,10 @@ else if ($method === 'POST') {
 
     try {
         // 1️⃣ Insert staff
-        $stmt = $db->prepare("INSERT INTO staffs 
-            (staff_number, first_name, last_name, other_names, ssnit, ghana_card, department_id, designation_id, status, bank_name, account_number, basic_salary, salary_currency, hire_date, bonded)
-            VALUES 
-            (:staff_number, :first_name, :last_name, :other_names, :ssnit, :ghanacard, :department_id, :designation_id, :status, :bank_name, :account_number, :basic_salary, :salary_currency, :hire_date, :bonded)");
+        $stmt = $db->prepare("INSERT INTO staffs
+            (staff_number, first_name, last_name, other_names, ssnit, ghana_card, department_id, designation_id, status, bank_name, account_number, basic_salary, salary_currency, hire_date, bonded, number_of_dependents)
+            VALUES
+            (:staff_number, :first_name, :last_name, :other_names, :ssnit, :ghanacard, :department_id, :designation_id, :status, :bank_name, :account_number, :basic_salary, :salary_currency, :hire_date, :bonded, :number_of_dependents)");
 
         $stmt->bindParam(':staff_number', $data->staff_number);
         $stmt->bindParam(':first_name', $data->first_name);
@@ -145,6 +145,9 @@ else if ($method === 'POST') {
 
         $bonded = isset($data->on_bonded_or_study_leave) ? $data->on_bonded_or_study_leave : false;
         $stmt->bindParam(':bonded', $bonded);
+
+        $numberOfDependents = isset($data->number_of_dependents) ? (int)$data->number_of_dependents : 0;
+        $stmt->bindParam(':number_of_dependents', $numberOfDependents);
 
         // Execute staff insert
         if (!$stmt->execute()) {
@@ -243,13 +246,15 @@ else if ($method === 'POST') {
             basic_salary = :basic_salary,
             salary_currency = :salary_currency,
             hire_date = :hire_date,
-            bonded = :bonded
+            bonded = :bonded,
+            number_of_dependents = :number_of_dependents
             WHERE id = :id";
 
         $stmt = $db->prepare($query);
 
         $salary_currency = ($data->status === 'permanent') ? 'USD' : 'GHS';
         $bonded = $data->on_bonded_or_study_leave ?? false;
+        $numberOfDependents = isset($data->number_of_dependents) ? (int)$data->number_of_dependents : 0;
 
         $stmt->execute([
             ':id' => $data->id,
@@ -267,7 +272,8 @@ else if ($method === 'POST') {
             ':basic_salary' => $data->basic_salary,
             ':salary_currency' => $salary_currency,
             ':hire_date' => $data->hire_date,
-            ':bonded' => $bonded
+            ':bonded' => $bonded,
+            ':number_of_dependents' => $numberOfDependents
         ]);
 
         // 2️⃣ Update allowances

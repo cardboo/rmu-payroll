@@ -96,12 +96,13 @@ try {
             $periodDate = new DateTime($period['year'] . '-' . str_pad($period['month'], 2, '0', STR_PAD_LEFT) . '-01');
 
             // Get eligible staff (not archived, hired before or on period date)
+            // Include number_of_dependents for dependents allowance calculation
             $query = "SELECT s.*, d.department_name, des.designation_name, cr.rate as currency_rate
                       FROM staffs s
                       LEFT JOIN departments d ON s.department_id = d.id
                       LEFT JOIN designations des ON s.designation_id = des.id
                       LEFT JOIN currency_rates cr ON s.salary_currency = cr.currency_to AND cr.is_active = 1
-                      WHERE s.is_archived = 0 
+                      WHERE s.is_archived = 0
                       AND DATE(s.hire_date) <= :period_date
                       ORDER BY s.first_name, s.last_name";
             $stmt = $db->prepare($query);
@@ -113,8 +114,8 @@ try {
             // For each eligible staff, get their staff_allowances and staff_deductions
             $staff_data = [];
             foreach ($eligible_staff as $staff) {
-                // Get staff-specific allowances
-                $query = "SELECT sa.*, a.allowance_name, a.default_amount, a.is_percentage
+                // Get staff-specific allowances (include is_dependents_allowance flag)
+                $query = "SELECT sa.*, a.allowance_name, a.default_amount, a.is_percentage, a.is_dependents_allowance
                           FROM staff_allowances sa
                           JOIN allowances a ON sa.allowance_id = a.id
                           WHERE sa.staff_id = :staff_id AND a.is_archived = 0";
