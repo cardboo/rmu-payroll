@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost/payroll_system/api";
+const API_BASE_URL = "http://localhost/rmu-payroll/api";
 
 const API_ENDPOINTS = {
 	// Auth
@@ -38,10 +38,6 @@ const API_ENDPOINTS = {
 	PAYROLL_STAFF_DEDUCTIONS: `${API_BASE_URL}/payroll/staff-deductions.php`,
 	PAYROLL_PROCESS_DETAILS: `${API_BASE_URL}/payroll/process-details.php`,
 	PAYROLL_LIST_BY_DEPARTMENT: `${API_BASE_URL}/payroll/list-by-department.php`,
-
-
-
-
 
 	// Reports
 	REPORTS: `${API_BASE_URL}/reports/index.php`,

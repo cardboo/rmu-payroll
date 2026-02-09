@@ -35,29 +35,29 @@ try {
         if ($rateData) {
             $currencyRate = floatval($rateData['rate']);
         }
-        
+
         if ($type === 'dashboard') {
             // Get dashboard statistics
-            
+
             // Total staff
             $staffQuery = "SELECT COUNT(*) as total FROM staffs WHERE is_archived = 0";
             $staffStmt = $db->query($staffQuery);
             $totalStaff = $staffStmt->fetch()['total'];
-            
+
             // Total departments
             $deptQuery = "SELECT COUNT(*) as total FROM departments WHERE is_archived = 0";
             $deptStmt = $db->query($deptQuery);
             $totalDepartments = $deptStmt->fetch()['total'];
-            
+
             // Active users
             $userQuery = "SELECT COUNT(*) as total FROM users WHERE is_active = 1";
             $userStmt = $db->query($userQuery);
             $activeUsers = $userStmt->fetch()['total'];
-            
+
             // Current month payroll
             $currentMonth = date('n');
             $currentYear = date('Y');
-            
+
             $payrollQuery = "SELECT COALESCE(SUM(pe.net_salary_ghs), 0) as total 
                             FROM payroll_entries pe
                             JOIN payroll_periods pp ON pe.payroll_period_id = pp.id
@@ -67,7 +67,7 @@ try {
             $payrollStmt->bindParam(':year', $currentYear);
             $payrollStmt->execute();
             $monthlyPayroll = $payrollStmt->fetch()['total'];
-            
+
             // Recent activity
             $activityQuery = "SELECT al.*, u.full_name as user_name 
                              FROM audit_logs al
@@ -76,7 +76,7 @@ try {
                              LIMIT 10";
             $activityStmt = $db->query($activityQuery);
             $recentActivity = $activityStmt->fetchAll();
-            
+
             http_response_code(200);
             echo json_encode([
                 'success' => true,
@@ -88,9 +88,7 @@ try {
                     'recent_activity' => $recentActivity
                 ]
             ]);
-        }
-        
-        else if ($type === 'payroll_summary') {
+        } else if ($type === 'payroll_summary') {
             $month = isset($_GET['month']) ? $_GET['month'] : date('n');
             $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
 
@@ -129,9 +127,9 @@ try {
                 $stmt->bindParam(':department_id', $departmentId);
             }
             $stmt->execute();
-            
+
             $entries = $stmt->fetchAll();
-            
+
             // Calculate totals
             $totalBasic = 0;
             $totalAllowances = 0;
@@ -139,7 +137,7 @@ try {
             $totalGross = 0;
             $totalNet = 0;
             $totalNetGHS = 0;
-            
+
             foreach ($entries as $entry) {
                 $totalBasic += $entry['basic_salary'];
                 $totalAllowances += $entry['total_allowances'];
@@ -148,7 +146,7 @@ try {
                 $totalNet += $entry['net_salary'];
                 $totalNetGHS += $entry['net_salary_ghs'];
             }
-            
+
             http_response_code(200);
             echo json_encode([
                 'success' => true,
@@ -169,12 +167,10 @@ try {
                     ]
                 ]
             ]);
-        }
-        
-        else if ($type === 'department_payroll') {
+        } else if ($type === 'department_payroll') {
             $month = isset($_GET['month']) ? $_GET['month'] : date('n');
             $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
-            
+
             $query = "SELECT 
                         d.department_name,
                         COUNT(pe.id) as staff_count,
@@ -191,14 +187,14 @@ try {
                       WHERE pp.month = :month AND pp.year = :year
                       GROUP BY d.id, d.department_name
                       ORDER BY total_net_ghs DESC";
-            
+
             $stmt = $db->prepare($query);
             $stmt->bindParam(':month', $month);
             $stmt->bindParam(':year', $year);
             $stmt->execute();
-            
+
             $departments = $stmt->fetchAll();
-            
+
             http_response_code(200);
             echo json_encode([
                 'success' => true,
@@ -210,11 +206,9 @@ try {
                     ]
                 ]
             ]);
-        }
-        
-        else if ($type === 'yearly_comparison') {
+        } else if ($type === 'yearly_comparison') {
             $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
-            
+
             $query = "SELECT 
                         pp.month,
                         pp.year,
@@ -225,13 +219,13 @@ try {
                       WHERE pp.year = :year
                       GROUP BY pp.id, pp.month, pp.year
                       ORDER BY pp.month";
-            
+
             $stmt = $db->prepare($query);
             $stmt->bindParam(':year', $year);
             $stmt->execute();
-            
+
             $months = $stmt->fetchAll();
-            
+
             http_response_code(200);
             echo json_encode([
                 'success' => true,
@@ -240,11 +234,9 @@ try {
                     'year' => $year
                 ]
             ]);
-        }
-        
-        else if ($type === 'staff_history') {
+        } else if ($type === 'staff_history') {
             $staffId = isset($_GET['staff_id']) ? $_GET['staff_id'] : null;
-            
+
             if (!$staffId) {
                 http_response_code(400);
                 echo json_encode([
@@ -253,7 +245,7 @@ try {
                 ]);
                 exit();
             }
-            
+
             $query = "SELECT 
                         pp.month,
                         pp.year,
@@ -268,13 +260,13 @@ try {
                       JOIN payroll_periods pp ON pe.payroll_period_id = pp.id
                       WHERE pe.staff_id = :staff_id
                       ORDER BY pp.year DESC, pp.month DESC";
-            
+
             $stmt = $db->prepare($query);
             $stmt->bindParam(':staff_id', $staffId);
             $stmt->execute();
-            
+
             $history = $stmt->fetchAll();
-            
+
             // Get staff details
             $staffQuery = "SELECT s.*, d.department_name, des.designation_name
                            FROM staffs s
@@ -285,7 +277,7 @@ try {
             $staffStmt->bindParam(':staff_id', $staffId);
             $staffStmt->execute();
             $staff = $staffStmt->fetch();
-            
+
             http_response_code(200);
             echo json_encode([
                 'success' => true,
@@ -294,12 +286,10 @@ try {
                     'history' => $history
                 ]
             ]);
-        }
-        
-        else if ($type === 'allowances_deductions') {
+        } else if ($type === 'allowances_deductions') {
             $month = isset($_GET['month']) ? $_GET['month'] : date('n');
             $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
-            
+
             // Get allowances breakdown
             $allowQuery = "SELECT 
                             a.allowance_name,
@@ -312,13 +302,13 @@ try {
                           WHERE pp.month = :month AND pp.year = :year
                           GROUP BY a.id, a.allowance_name
                           ORDER BY total_amount DESC";
-            
+
             $allowStmt = $db->prepare($allowQuery);
             $allowStmt->bindParam(':month', $month);
             $allowStmt->bindParam(':year', $year);
             $allowStmt->execute();
             $allowances = $allowStmt->fetchAll();
-            
+
             // Get deductions breakdown
             $deductQuery = "SELECT 
                              d.deduction_name,
@@ -331,13 +321,13 @@ try {
                            WHERE pp.month = :month AND pp.year = :year
                            GROUP BY d.id, d.deduction_name
                            ORDER BY total_amount DESC";
-            
+
             $deductStmt = $db->prepare($deductQuery);
             $deductStmt->bindParam(':month', $month);
             $deductStmt->bindParam(':year', $year);
             $deductStmt->execute();
             $deductions = $deductStmt->fetchAll();
-            
+
             http_response_code(200);
             echo json_encode([
                 'success' => true,
@@ -350,9 +340,7 @@ try {
                     ]
                 ]
             ]);
-        }
-
-        else if ($type === 'gross_salary') {
+        } else if ($type === 'gross_salary') {
             $month = isset($_GET['month']) ? $_GET['month'] : date('n');
             $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
 
@@ -501,9 +489,7 @@ try {
                     ]
                 ]
             ]);
-        }
-
-        else if ($type === 'deductions_report') {
+        } else if ($type === 'deductions_report') {
             $month = isset($_GET['month']) ? $_GET['month'] : date('n');
             $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
 
@@ -642,9 +628,7 @@ try {
                     ]
                 ]
             ]);
-        }
-
-        else if ($type === 'ssnit_paye_eligible') {
+        } else if ($type === 'ssnit_paye_eligible') {
             $month = isset($_GET['month']) ? $_GET['month'] : date('n');
             $year = isset($_GET['year']) ? $_GET['year'] : date('Y');
 
@@ -785,7 +769,7 @@ try {
         'endpoint' => 'reports',
         'report_type' => $_GET['type'] ?? 'N/A'
     ]);
-    
+
     http_response_code(500);
     echo json_encode([
         'success' => false,
@@ -797,11 +781,10 @@ try {
         'endpoint' => 'reports',
         'report_type' => $_GET['type'] ?? 'N/A'
     ]);
-    
+
     http_response_code(500);
     echo json_encode([
         'success' => false,
         'message' => 'An unexpected error occurred'
     ]);
 }
-?>

@@ -21,7 +21,7 @@ try {
                       LIMIT 1";
             $stmt = $db->query($query);
             $data = $stmt->fetch();
-            
+
             http_response_code(200);
             echo json_encode([
                 'success' => true,
@@ -34,7 +34,7 @@ try {
                       ORDER BY cr.effective_date DESC";
             $stmt = $db->query($query);
             $rates = $stmt->fetchAll();
-            
+
             http_response_code(200);
             echo json_encode([
                 'success' => true,
@@ -46,9 +46,9 @@ try {
     // POST - Create new currency rate
     else if ($method === 'POST') {
         requireAdmin($user);
-        
+
         $data = json_decode(file_get_contents("php://input"));
-        
+
         if (!isset($data->rate) || !isset($data->effective_date)) {
             http_response_code(400);
             echo json_encode([
@@ -57,19 +57,19 @@ try {
             ]);
             exit();
         }
-        
+
         // Deactivate previous rates
         $deactivateQuery = "UPDATE currency_rates SET is_active = 0";
         $db->query($deactivateQuery);
-        
+
         $query = "INSERT INTO currency_rates (currency_from, currency_to, rate, effective_date, created_by, is_active) 
                   VALUES ('USD', 'GHS', :rate, :effective_date, :created_by, 1)";
         $stmt = $db->prepare($query);
-        
+
         $stmt->bindParam(':rate', $data->rate);
         $stmt->bindParam(':effective_date', $data->effective_date);
         $stmt->bindParam(':created_by', $user->user_id);
-        
+
         if ($stmt->execute()) {
             $logQuery = "INSERT INTO audit_logs (user_id, action, table_name, record_id) 
                          VALUES (:user_id, 'CREATE', 'currency_rates', :record_id)";
@@ -78,7 +78,7 @@ try {
             $newId = $db->lastInsertId();
             $logStmt->bindParam(':record_id', $newId);
             $logStmt->execute();
-            
+
             http_response_code(201);
             echo json_encode([
                 'success' => true,
@@ -97,9 +97,9 @@ try {
     // PUT - Update currency rate (activate/deactivate)
     else if ($method === 'PUT') {
         requireAdmin($user);
-        
+
         $data = json_decode(file_get_contents("php://input"));
-        
+
         if (!isset($data->id)) {
             http_response_code(400);
             echo json_encode([
@@ -108,18 +108,18 @@ try {
             ]);
             exit();
         }
-        
+
         if ($data->is_active) {
             // Deactivate all other rates
             $deactivateQuery = "UPDATE currency_rates SET is_active = 0";
             $db->query($deactivateQuery);
         }
-        
+
         $query = "UPDATE currency_rates SET is_active = :is_active WHERE id = :id";
         $stmt = $db->prepare($query);
         $stmt->bindParam(':id', $data->id);
         $stmt->bindParam(':is_active', $data->is_active);
-        
+
         if ($stmt->execute()) {
             $logQuery = "INSERT INTO audit_logs (user_id, action, table_name, record_id) 
                          VALUES (:user_id, 'UPDATE', 'currency_rates', :record_id)";
@@ -127,7 +127,7 @@ try {
             $logStmt->bindParam(':user_id', $user->user_id);
             $logStmt->bindParam(':record_id', $data->id);
             $logStmt->execute();
-            
+
             http_response_code(200);
             echo json_encode([
                 'success' => true,
@@ -145,9 +145,9 @@ try {
     // DELETE - Delete currency rate
     else if ($method === 'DELETE') {
         requireAdmin($user);
-        
+
         $data = json_decode(file_get_contents("php://input"));
-        
+
         if (!isset($data->id)) {
             http_response_code(400);
             echo json_encode([
@@ -156,11 +156,11 @@ try {
             ]);
             exit();
         }
-        
+
         $query = "DELETE FROM currency_rates WHERE id = :id";
         $stmt = $db->prepare($query);
         $stmt->bindParam(':id', $data->id);
-        
+
         if ($stmt->execute()) {
             $logQuery = "INSERT INTO audit_logs (user_id, action, table_name, record_id) 
                          VALUES (:user_id, 'DELETE', 'currency_rates', :record_id)";
@@ -168,7 +168,7 @@ try {
             $logStmt->bindParam(':user_id', $user->user_id);
             $logStmt->bindParam(':record_id', $data->id);
             $logStmt->execute();
-            
+
             http_response_code(200);
             echo json_encode([
                 'success' => true,
@@ -187,7 +187,7 @@ try {
         'method' => $method ?? 'Unknown',
         'endpoint' => 'currency-rates'
     ]);
-    
+
     http_response_code(500);
     echo json_encode([
         'success' => false,
@@ -198,11 +198,10 @@ try {
         'method' => $method ?? 'Unknown',
         'endpoint' => 'currency-rates'
     ]);
-    
+
     http_response_code(500);
     echo json_encode([
         'success' => false,
         'message' => 'An unexpected error occurred'
     ]);
 }
-?>

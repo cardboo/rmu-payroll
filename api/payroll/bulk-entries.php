@@ -151,18 +151,24 @@ try {
 
                 $deleteDeductions = $db->prepare("DELETE FROM payroll_deductions WHERE payroll_entry_id = :entry_id");
                 $deleteDeductions->execute([':entry_id' => $entryId]);
-
             } else {
                 // Create new entry
+                $query = "SELECT * FROM currency_rates WHERE is_active = 1 
+                            ORDER BY effective_date DESC LIMIT 1";
+                $stmt = $db->query($query);
+                $data = $stmt->fetch();
+
+                $currency_rate = $data ? $data['rate'] : 1;
+
                 $insertStmt = $db->prepare("
                     INSERT INTO payroll_entries (
                         payroll_period_id, staff_id, basic_salary,
                         total_allowances, total_deductions,
-                        gross_salary, net_salary, created_by
+                        gross_salary, net_salary, currency_rate, created_by
                     ) VALUES (
                         :payroll_period_id, :staff_id, :basic_salary,
                         :total_allowances, :total_deductions,
-                        :gross_salary, :net_salary, :created_by
+                        :gross_salary, :net_salary, :currency_rate, :created_by
                     )
                 ");
                 $insertStmt->execute([
@@ -173,6 +179,7 @@ try {
                     ':total_deductions' => $totalDeductions,
                     ':gross_salary' => $grossSalary,
                     ':net_salary' => $netSalary,
+                    ':currency_rate' => $currency_rate,
                     ':created_by' => $user->user_id
                 ]);
                 $entryId = (int)$db->lastInsertId();
@@ -234,7 +241,6 @@ try {
                 'net_salary' => $netSalary
             ];
             $successCount++;
-
         } catch (Exception $e) {
             ErrorLogger::logError($e, ['bulk_entry_staff_id' => $entry['staff_id'] ?? 'unknown']);
             $results[] = [
@@ -259,7 +265,6 @@ try {
             'results' => $results
         ]
     ]);
-
 } catch (Throwable $e) {
     if (isset($db) && $db->inTransaction()) {
         $db->rollBack();
@@ -271,4 +276,3 @@ try {
         'message' => 'Server error'
     ]);
 }
-?>
