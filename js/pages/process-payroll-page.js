@@ -104,6 +104,13 @@ class ProcessPayrollPage {
   }
 
   async init() {
+    // Reset state flags for fresh page initialization
+    // This is needed because the SPA may re-render the page while reusing this instance
+    this.listenersAttached = false;
+    this.isSubmitting = false;
+    this.isModalLoading = false;
+    this.isPeriodAlreadyProcessed = false;
+
     this.attachEventListeners();
 
     // Initialize the payroll manager to load the current currency rate
