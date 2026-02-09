@@ -1255,6 +1255,14 @@ async function loadReportsPage() {
               ${departmentsOptions}
             </select>
           </div>
+          <div class="form-group" id="staffStatusGroup">
+            <label for="reportStaffStatus">Staff Status</label>
+            <select id="reportStaffStatus" class="form-control">
+              <option value="">All Staff</option>
+              <option value="permanent">Permanent</option>
+              <option value="contract">Contract</option>
+            </select>
+          </div>
         </div>
 
         <button id="generateReportBtn" class="btn btn-primary">Generate Report</button>
@@ -1278,6 +1286,7 @@ function setupReportsEventListeners() {
   const reportType = document.getElementById("reportType")
   const monthGroup = document.getElementById("monthGroup")
   const departmentGroup = document.getElementById("departmentGroup")
+  const staffStatusGroup = document.getElementById("staffStatusGroup")
 
   reportType.addEventListener("change", () => {
     // Hide month selector for yearly comparison
@@ -1291,8 +1300,10 @@ function setupReportsEventListeners() {
     // and yearly_comparison
     if (reportType.value === "department_payroll" || reportType.value === "yearly_comparison") {
       departmentGroup.style.display = "none"
+      staffStatusGroup.style.display = "none"
     } else {
       departmentGroup.style.display = "block"
+      staffStatusGroup.style.display = "block"
     }
   })
 
@@ -1305,6 +1316,7 @@ async function generateReport() {
   const month = document.getElementById("reportMonth").value
   const year = document.getElementById("reportYear").value
   const departmentId = document.getElementById("reportDepartment").value
+  const staffStatus = document.getElementById("reportStaffStatus").value
 
   const reportContent = document.getElementById("reportContent")
   reportContent.innerHTML = '<p style="text-align: center; padding: 40px;">Loading report...</p>'
@@ -1320,6 +1332,11 @@ async function generateReport() {
     // Add department filter if selected and applicable
     if (departmentId && reportType !== "department_payroll" && reportType !== "yearly_comparison") {
       url += `&department_id=${departmentId}`
+    }
+
+    // Add staff status filter if selected and applicable
+    if (staffStatus && reportType !== "department_payroll" && reportType !== "yearly_comparison") {
+      url += `&staff_status=${staffStatus}`
     }
 
     const response = await window.ApiService.get(url)
@@ -1690,6 +1707,10 @@ function displayGrossSalaryReport(data) {
     "July", "August", "September", "October", "November", "December"
   ]
 
+  // Helper function to format currency
+  const formatGhs = (amount) => `GHS ${Number.parseFloat(amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+  const formatUsd = (amount) => `$${Number.parseFloat(amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+
   // Build dynamic allowance column headers
   const allowanceHeaders = data.allowance_types
     .map(at => `<th style="text-align: right;">${at.allowance_name}</th>`)
@@ -1704,22 +1725,23 @@ function displayGrossSalaryReport(data) {
   reportContent.innerHTML = `
     <div class="card" style="background-color: #f8fafc; padding: 20px; margin-bottom: 24px;">
       <h4 style="margin-bottom: 16px;">Gross Salary Report - ${monthNames[data.period.month - 1]} ${data.period.year}</h4>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Exchange Rate: 1 USD = ${Number.parseFloat(data.currency_rate).toFixed(4)} GHS</p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
         <div>
           <div style="font-size: 12px; color: #64748b;">Total Staff</div>
           <div style="font-size: 24px; font-weight: 700;">${data.entries.length}</div>
         </div>
         <div>
-          <div style="font-size: 12px; color: #64748b;">Total Basic Salary</div>
-          <div style="font-size: 24px; font-weight: 700; color: #2563eb;">GHS ${Number.parseFloat(data.totals.basic_salary).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+          <div style="font-size: 12px; color: #64748b;">Total Basic Salary (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #2563eb;">${formatGhs(data.totals.basic_salary_ghs)}</div>
         </div>
         <div>
-          <div style="font-size: 12px; color: #64748b;">Total Allowances</div>
-          <div style="font-size: 24px; font-weight: 700; color: #10b981;">GHS ${totalAllowancesSum.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+          <div style="font-size: 12px; color: #64748b;">Total Allowances (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #10b981;">${formatGhs(totalAllowancesSum)}</div>
         </div>
         <div>
-          <div style="font-size: 12px; color: #64748b;">Total Gross Salary</div>
-          <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">GHS ${Number.parseFloat(data.totals.gross_salary).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+          <div style="font-size: 12px; color: #64748b;">Total Gross Salary (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">${formatGhs(data.totals.gross_salary_ghs)}</div>
         </div>
       </div>
     </div>
@@ -1732,40 +1754,61 @@ function displayGrossSalaryReport(data) {
             <th>Name</th>
             <th>Department</th>
             <th>Designation</th>
-            <th style="text-align: right;">Basic Salary</th>
+            <th>Status</th>
+            <th style="text-align: right;">Basic Salary (GHS)</th>
             ${allowanceHeaders}
-            <th style="text-align: right;">Gross Salary</th>
+            <th style="text-align: right;">Gross Salary (GHS)</th>
           </tr>
         </thead>
         <tbody>
           ${data.entries.map(entry => {
+            const isUsd = entry.salary_currency === 'USD'
             const allowanceCells = data.allowance_types
               .map(at => {
-                const amount = entry.allowances[at.id] || 0
-                return `<td style="text-align: right; color: #10b981;">${amount > 0 ? Number.parseFloat(amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>`
+                const allowanceData = entry.allowances[at.id]
+                if (!allowanceData || allowanceData.ghs === 0) {
+                  return `<td style="text-align: right; color: #10b981;">-</td>`
+                }
+                if (isUsd && allowanceData.original > 0) {
+                  return `<td style="text-align: right; color: #10b981;">
+                    ${formatGhs(allowanceData.ghs)}
+                    <br><span style="font-size: 10px; color: #1976d2;">(${formatUsd(allowanceData.original)})</span>
+                  </td>`
+                }
+                return `<td style="text-align: right; color: #10b981;">${formatGhs(allowanceData.ghs)}</td>`
               })
               .join('')
+
+            const basicSalaryDisplay = isUsd
+              ? `${formatGhs(entry.basic_salary_ghs)}<br><span style="font-size: 10px; color: #1976d2;">(${formatUsd(entry.basic_salary_original)})</span>`
+              : formatGhs(entry.basic_salary_ghs)
+
+            const grossSalaryDisplay = isUsd
+              ? `${formatGhs(entry.gross_salary_ghs)}<br><span style="font-size: 10px; color: #1976d2;">(${formatUsd(entry.gross_salary_original)})</span>`
+              : formatGhs(entry.gross_salary_ghs)
+
             return `
             <tr>
               <td>${entry.staff_number}</td>
               <td>${entry.staff_name}</td>
               <td>${entry.department_name || 'N/A'}</td>
               <td>${entry.designation_name || 'N/A'}</td>
-              <td style="text-align: right;">GHS ${Number.parseFloat(entry.basic_salary).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+              <td><span style="padding: 2px 8px; border-radius: 4px; font-size: 11px; background: ${entry.staff_status === 'permanent' ? '#dbeafe' : '#fef3c7'}; color: ${entry.staff_status === 'permanent' ? '#1e40af' : '#92400e'};">${entry.staff_status}</span></td>
+              <td style="text-align: right;">${basicSalaryDisplay}</td>
               ${allowanceCells}
-              <td style="text-align: right; font-weight: bold; color: #7c3aed;">GHS ${Number.parseFloat(entry.gross_salary).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+              <td style="text-align: right; font-weight: bold; color: #7c3aed;">${grossSalaryDisplay}</td>
             </tr>
           `}).join('')}
         </tbody>
         <tfoot style="background-color: #f1f5f9; font-weight: bold;">
           <tr>
-            <td colspan="4" style="text-align: right;">TOTALS:</td>
-            <td style="text-align: right;">GHS ${Number.parseFloat(data.totals.basic_salary).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td colspan="5" style="text-align: right;">TOTALS:</td>
+            <td style="text-align: right;">${formatGhs(data.totals.basic_salary_ghs)}</td>
             ${data.allowance_types.map(at => {
               const total = data.totals.allowances[at.id] || 0
-              return `<td style="text-align: right; color: #10b981;">GHS ${Number.parseFloat(total).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>`
+              return `<td style="text-align: right; color: #10b981;">${formatGhs(total)}</td>`
             }).join('')}
-            <td style="text-align: right; color: #7c3aed;">GHS ${Number.parseFloat(data.totals.gross_salary).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td style="text-align: right; color: #7c3aed;">${formatGhs(data.totals.gross_salary_ghs)}</td>
           </tr>
         </tfoot>
       </table>
@@ -1781,6 +1824,10 @@ function displayDeductionsReport(data) {
     "July", "August", "September", "October", "November", "December"
   ]
 
+  // Helper function to format currency
+  const formatGhs = (amount) => `GHS ${Number.parseFloat(amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+  const formatUsd = (amount) => `$${Number.parseFloat(amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+
   // Build dynamic deduction column headers
   const deductionHeaders = data.deduction_types
     .map(dt => `<th style="text-align: right;">${dt.deduction_name}</th>`)
@@ -1789,14 +1836,15 @@ function displayDeductionsReport(data) {
   reportContent.innerHTML = `
     <div class="card" style="background-color: #f8fafc; padding: 20px; margin-bottom: 24px;">
       <h4 style="margin-bottom: 16px;">Deductions Report - ${monthNames[data.period.month - 1]} ${data.period.year}</h4>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Exchange Rate: 1 USD = ${Number.parseFloat(data.currency_rate).toFixed(4)} GHS</p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
         <div>
           <div style="font-size: 12px; color: #64748b;">Total Staff</div>
           <div style="font-size: 24px; font-weight: 700;">${data.entries.length}</div>
         </div>
         <div>
-          <div style="font-size: 12px; color: #64748b;">Total Deductions</div>
-          <div style="font-size: 24px; font-weight: 700; color: #ef4444;">GHS ${Number.parseFloat(data.totals.total_deductions).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+          <div style="font-size: 12px; color: #64748b;">Total Deductions (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #ef4444;">${formatGhs(data.totals.total_deductions_ghs)}</div>
         </div>
       </div>
     </div>
@@ -1809,37 +1857,54 @@ function displayDeductionsReport(data) {
             <th>Name</th>
             <th>Department</th>
             <th>Designation</th>
+            <th>Status</th>
             ${deductionHeaders}
-            <th style="text-align: right;">Total Deductions</th>
+            <th style="text-align: right;">Total Deductions (GHS)</th>
           </tr>
         </thead>
         <tbody>
           ${data.entries.map(entry => {
+            const isUsd = entry.salary_currency === 'USD'
             const deductionCells = data.deduction_types
               .map(dt => {
-                const amount = entry.deductions[dt.id] || 0
-                return `<td style="text-align: right; color: #ef4444;">${amount > 0 ? Number.parseFloat(amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>`
+                const deductionData = entry.deductions[dt.id]
+                if (!deductionData || deductionData.ghs === 0) {
+                  return `<td style="text-align: right; color: #ef4444;">-</td>`
+                }
+                if (isUsd && deductionData.original > 0) {
+                  return `<td style="text-align: right; color: #ef4444;">
+                    ${formatGhs(deductionData.ghs)}
+                    <br><span style="font-size: 10px; color: #1976d2;">(${formatUsd(deductionData.original)})</span>
+                  </td>`
+                }
+                return `<td style="text-align: right; color: #ef4444;">${formatGhs(deductionData.ghs)}</td>`
               })
               .join('')
+
+            const totalDeductionsDisplay = isUsd
+              ? `${formatGhs(entry.total_deductions_ghs)}<br><span style="font-size: 10px; color: #1976d2;">(${formatUsd(entry.total_deductions_original)})</span>`
+              : formatGhs(entry.total_deductions_ghs)
+
             return `
             <tr>
               <td>${entry.staff_number}</td>
               <td>${entry.staff_name}</td>
               <td>${entry.department_name || 'N/A'}</td>
               <td>${entry.designation_name || 'N/A'}</td>
+              <td><span style="padding: 2px 8px; border-radius: 4px; font-size: 11px; background: ${entry.staff_status === 'permanent' ? '#dbeafe' : '#fef3c7'}; color: ${entry.staff_status === 'permanent' ? '#1e40af' : '#92400e'};">${entry.staff_status}</span></td>
               ${deductionCells}
-              <td style="text-align: right; font-weight: bold; color: #ef4444;">GHS ${Number.parseFloat(entry.total_deductions).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+              <td style="text-align: right; font-weight: bold; color: #ef4444;">${totalDeductionsDisplay}</td>
             </tr>
           `}).join('')}
         </tbody>
         <tfoot style="background-color: #f1f5f9; font-weight: bold;">
           <tr>
-            <td colspan="4" style="text-align: right;">TOTALS:</td>
+            <td colspan="5" style="text-align: right;">TOTALS:</td>
             ${data.deduction_types.map(dt => {
               const total = data.totals.deductions[dt.id] || 0
-              return `<td style="text-align: right; color: #ef4444;">GHS ${Number.parseFloat(total).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>`
+              return `<td style="text-align: right; color: #ef4444;">${formatGhs(total)}</td>`
             }).join('')}
-            <td style="text-align: right; color: #ef4444;">GHS ${Number.parseFloat(data.totals.total_deductions).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td style="text-align: right; color: #ef4444;">${formatGhs(data.totals.total_deductions_ghs)}</td>
           </tr>
         </tfoot>
       </table>
@@ -1855,21 +1920,26 @@ function displaySsnitPayeReport(data) {
     "July", "August", "September", "October", "November", "December"
   ]
 
+  // Helper function to format currency
+  const formatGhs = (amount) => `GHS ${Number.parseFloat(amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+  const formatUsd = (amount) => `$${Number.parseFloat(amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+
   reportContent.innerHTML = `
     <div class="card" style="background-color: #f8fafc; padding: 20px; margin-bottom: 24px;">
       <h4 style="margin-bottom: 16px;">SSNIT & PAYE Eligible Staff - ${monthNames[data.period.month - 1]} ${data.period.year}</h4>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Exchange Rate: 1 USD = ${Number.parseFloat(data.currency_rate).toFixed(4)} GHS</p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
         <div>
           <div style="font-size: 12px; color: #64748b;">Eligible Staff</div>
           <div style="font-size: 24px; font-weight: 700;">${data.totals.count}</div>
         </div>
         <div>
-          <div style="font-size: 12px; color: #64748b;">Total SSNIT Deductions</div>
-          <div style="font-size: 24px; font-weight: 700; color: #f59e0b;">GHS ${Number.parseFloat(data.totals.ssnit).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+          <div style="font-size: 12px; color: #64748b;">Total SSNIT Deductions (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #f59e0b;">${formatGhs(data.totals.ssnit_ghs)}</div>
         </div>
         <div>
-          <div style="font-size: 12px; color: #64748b;">Total PAYE/Income Tax</div>
-          <div style="font-size: 24px; font-weight: 700; color: #ef4444;">GHS ${Number.parseFloat(data.totals.paye).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+          <div style="font-size: 12px; color: #64748b;">Total PAYE/Income Tax (GHS)</div>
+          <div style="font-size: 24px; font-weight: 700; color: #ef4444;">${formatGhs(data.totals.paye_ghs)}</div>
         </div>
       </div>
     </div>
@@ -1882,41 +1952,61 @@ function displaySsnitPayeReport(data) {
             <th>Name</th>
             <th>Department</th>
             <th>Designation</th>
+            <th>Status</th>
             <th>SSNIT No.</th>
-            <th style="text-align: right;">Basic Salary</th>
-            <th style="text-align: right;">Gross Salary</th>
+            <th style="text-align: right;">Basic Salary (GHS)</th>
+            <th style="text-align: right;">Gross Salary (GHS)</th>
             <th>SSNIT Deductions</th>
             <th>PAYE/Tax Deductions</th>
           </tr>
         </thead>
         <tbody>
           ${data.entries.length > 0 ? data.entries.map(entry => {
-            const ssnitDeductions = entry.ssnit_deductions.map(d =>
-              `<div style="margin: 2px 0;"><span style="font-size: 11px;">${d.name}:</span> <strong style="color: #f59e0b;">GHS ${Number.parseFloat(d.amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></div>`
-            ).join('') || '-'
-            const payeDeductions = entry.paye_deductions.map(d =>
-              `<div style="margin: 2px 0;"><span style="font-size: 11px;">${d.name}:</span> <strong style="color: #ef4444;">GHS ${Number.parseFloat(d.amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></div>`
-            ).join('') || '-'
+            const isUsd = entry.salary_currency === 'USD'
+
+            const ssnitDeductions = entry.ssnit_deductions.map(d => {
+              if (isUsd) {
+                return `<div style="margin: 2px 0;"><span style="font-size: 11px;">${d.name}:</span> <strong style="color: #f59e0b;">${formatGhs(d.amount_ghs)}</strong><br><span style="font-size: 10px; color: #1976d2;">(${formatUsd(d.amount_original)})</span></div>`
+              }
+              return `<div style="margin: 2px 0;"><span style="font-size: 11px;">${d.name}:</span> <strong style="color: #f59e0b;">${formatGhs(d.amount_ghs)}</strong></div>`
+            }).join('') || '-'
+
+            const payeDeductions = entry.paye_deductions.map(d => {
+              if (isUsd) {
+                return `<div style="margin: 2px 0;"><span style="font-size: 11px;">${d.name}:</span> <strong style="color: #ef4444;">${formatGhs(d.amount_ghs)}</strong><br><span style="font-size: 10px; color: #1976d2;">(${formatUsd(d.amount_original)})</span></div>`
+              }
+              return `<div style="margin: 2px 0;"><span style="font-size: 11px;">${d.name}:</span> <strong style="color: #ef4444;">${formatGhs(d.amount_ghs)}</strong></div>`
+            }).join('') || '-'
+
+            const basicSalaryDisplay = isUsd
+              ? `${formatGhs(entry.basic_salary_ghs)}<br><span style="font-size: 10px; color: #1976d2;">(${formatUsd(entry.basic_salary_original)})</span>`
+              : formatGhs(entry.basic_salary_ghs)
+
+            const grossSalaryDisplay = isUsd
+              ? `${formatGhs(entry.gross_salary_ghs)}<br><span style="font-size: 10px; color: #1976d2;">(${formatUsd(entry.gross_salary_original)})</span>`
+              : formatGhs(entry.gross_salary_ghs)
+
             return `
             <tr>
               <td>${entry.staff_number}</td>
               <td>${entry.staff_name}</td>
               <td>${entry.department_name || 'N/A'}</td>
               <td>${entry.designation_name || 'N/A'}</td>
+              <td><span style="padding: 2px 8px; border-radius: 4px; font-size: 11px; background: ${entry.staff_status === 'permanent' ? '#dbeafe' : '#fef3c7'}; color: ${entry.staff_status === 'permanent' ? '#1e40af' : '#92400e'};">${entry.staff_status}</span></td>
               <td>${entry.ssnit_number || 'N/A'}</td>
-              <td style="text-align: right;">GHS ${Number.parseFloat(entry.basic_salary).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-              <td style="text-align: right;">GHS ${Number.parseFloat(entry.gross_salary).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+              <td style="text-align: right;">${basicSalaryDisplay}</td>
+              <td style="text-align: right;">${grossSalaryDisplay}</td>
               <td>${ssnitDeductions}</td>
               <td>${payeDeductions}</td>
             </tr>
-          `}).join('') : '<tr><td colspan="9" style="text-align: center; padding: 20px;">No staff with SSNIT/PAYE deductions found for this period</td></tr>'}
+          `}).join('') : '<tr><td colspan="10" style="text-align: center; padding: 20px;">No staff with SSNIT/PAYE deductions found for this period</td></tr>'}
         </tbody>
         ${data.entries.length > 0 ? `
         <tfoot style="background-color: #f1f5f9; font-weight: bold;">
           <tr>
-            <td colspan="7" style="text-align: right;">TOTALS:</td>
-            <td style="color: #f59e0b;">GHS ${Number.parseFloat(data.totals.ssnit).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-            <td style="color: #ef4444;">GHS ${Number.parseFloat(data.totals.paye).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td colspan="8" style="text-align: right;">TOTALS:</td>
+            <td style="color: #f59e0b;">${formatGhs(data.totals.ssnit_ghs)}</td>
+            <td style="color: #ef4444;">${formatGhs(data.totals.paye_ghs)}</td>
           </tr>
         </tfoot>
         ` : ''}
