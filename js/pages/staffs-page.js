@@ -363,35 +363,78 @@ populateAllowancesAndDeductions() {
       const isFixed = a.is_percentage === 0;
       const checked = this.currentEditStaff?.allowances?.some(x => x.id === a.id) ? 'checked' : '';
 
+      // For dependents allowance, always show the base default_amount (not the multiplied stored value)
+      // This allows proper recalculation when number of dependents changes
+      const allowanceName = (a.allowance_name || '').toLowerCase();
+      const isDependentsAllowance = allowanceName.includes('dependent');
+
+      let displayAmount;
+      if (isDependentsAllowance) {
+        // For dependents allowance, always show the base value from allowances table
+        displayAmount = a.default_amount;
+      } else {
+        // For other allowances, show staff's custom amount or default
+        displayAmount = this.currentEditStaff?.allowances?.find(x => x.id === a.id)?.amount ?? a.default_amount;
+      }
+
       const amountField = isFixed
         ? `<input type="number"
             class="allowance-amount"
             data-id="${a.id}"
-            value="${this.currentEditStaff?.allowances?.find(x => x.id === a.id)?.amount ?? a.default_amount}"
+            data-is-dependents="${isDependentsAllowance ? '1' : '0'}"
+            value="${displayAmount}"
             step="0.01"
             min="0"
             style="width: 90px; margin-left: auto;"
             ${checked ? '' : 'disabled'}>`
         : `<span style="font-size:12px; color:#666;">${a.default_amount}%</span>`;
 
+      // Add hint for dependents allowance
+      const dependentsHint = isDependentsAllowance
+        ? `<span class="dependents-hint" data-allowance-id="${a.id}" style="font-size:11px; color:#1976d2; margin-left:4px;"></span>`
+        : '';
+
       return `
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-          <label style="flex:1; display:flex; gap:8px;">
+          <label style="flex:1; display:flex; gap:8px; align-items:center;">
             <input type="checkbox"
               class="allowance-checkbox"
               value="${a.id}"
               data-is-percentage="${a.is_percentage}"
+              data-is-dependents="${isDependentsAllowance ? '1' : '0'}"
               ${checked}>
             ${a.allowance_name} (${a.allowance_code})
+            ${dependentsHint}
           </label>
           ${amountField}
         </div>`;
     }).join("");
 
+    // Update dependents hint based on current dependents count
+    this.updateDependentsHint();
+
     document.querySelectorAll('.allowance-checkbox').forEach(cb => {
       const amountInput = document.querySelector(`.allowance-amount[data-id="${cb.value}"]`);
-      if(amountInput) cb.addEventListener('change', () => { amountInput.disabled = !cb.checked; });
+      if(amountInput) {
+        cb.addEventListener('change', () => {
+          amountInput.disabled = !cb.checked;
+          // Update dependents hint when checkbox changes
+          if (cb.getAttribute('data-is-dependents') === '1') {
+            this.updateDependentsHint();
+          }
+        });
+        // Update hint when amount changes for dependents allowance
+        if (cb.getAttribute('data-is-dependents') === '1') {
+          amountInput.addEventListener('input', () => this.updateDependentsHint());
+        }
+      }
     });
+
+    // Add listener for number of dependents input to update hint
+    const dependentsInput = document.getElementById('numberOfDependents');
+    if (dependentsInput) {
+      dependentsInput.addEventListener('input', () => this.updateDependentsHint());
+    }
   }
 
   // --- DEDUCTIONS ---
@@ -776,13 +819,20 @@ document.querySelectorAll(".allowance-checkbox:checked").forEach(cb => {
     });
   } else {
     const amountInput = document.querySelector(`.allowance-amount[data-id="${allowanceId}"]`);
-    const fixedAmount = amountInput && amountInput.value !== ""
+    let fixedAmount = amountInput && amountInput.value !== ""
       ? parseFloat(amountInput.value)
       : allowance.default_amount;
 
+    // Check if this is the dependents allowance - multiply by number of dependents
+    const allowanceName = (allowance.allowance_name || '').toLowerCase();
+    if (allowanceName.includes('dependent') && numberOfDependents > 0) {
+      // Multiply the base amount by the number of dependents
+      fixedAmount = fixedAmount * numberOfDependents;
+    }
+
     selectedAllowances.push({
       id: allowanceId,
-      amount: fixedAmount,  // customized per staff
+      amount: fixedAmount,  // customized per staff (multiplied if dependents allowance)
       is_percentage: 0
     });
   }
@@ -988,6 +1038,29 @@ document.querySelectorAll(".allowance-checkbox:checked").forEach(cb => {
 			dependentsInputGroup.style.display = "none";
 			numberOfDependents.value = "0";
 		}
+
+		// Update the dependents hint in allowances section
+		this.updateDependentsHint();
+	}
+
+	updateDependentsHint() {
+		const hasDependents = document.getElementById("hasDependents")?.checked || false;
+		const numberOfDependents = hasDependents ? (parseInt(document.getElementById("numberOfDependents")?.value) || 0) : 0;
+
+		// Find all dependents hints and update them
+		document.querySelectorAll('.dependents-hint').forEach(hint => {
+			const allowanceId = hint.getAttribute('data-allowance-id');
+			const amountInput = document.querySelector(`.allowance-amount[data-id="${allowanceId}"]`);
+			const checkbox = document.querySelector(`.allowance-checkbox[value="${allowanceId}"]`);
+
+			if (amountInput && checkbox && checkbox.checked && numberOfDependents > 0) {
+				const baseAmount = parseFloat(amountInput.value) || 0;
+				const totalAmount = baseAmount * numberOfDependents;
+				hint.textContent = `(${numberOfDependents} × ${baseAmount.toFixed(2)} = ${totalAmount.toFixed(2)})`;
+			} else {
+				hint.textContent = '';
+			}
+		});
 	}
 
 	async init() {
