@@ -583,6 +583,15 @@ class StaffsPage {
 		document
 			.getElementById("cancelStaffBtn")
 			.addEventListener("click", () => this.closeModal());
+
+		// Show Archived checkbox listener
+		const showArchivedCheckbox = document.getElementById("showArchivedStaffs");
+		if (showArchivedCheckbox) {
+			showArchivedCheckbox.addEventListener("change", async (e) => {
+				this.showArchived = e.target.checked;
+				await this.loadStaffs();
+			});
+		}
 	}
 
 	async loadStaffs() {
