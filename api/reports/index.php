@@ -15,11 +15,8 @@ try {
     if ($method === 'GET') {
         $type = isset($_GET['type']) ? $_GET['type'] : 'dashboard';
 
-        // Reports with sensitive payroll data require admin access
-        $adminOnlyReports = ['payroll_summary', 'department_payroll', 'yearly_comparison', 'staff_history', 'allowances_deductions', 'gross_salary', 'deductions_report', 'ssnit_paye_eligible'];
-        if (in_array($type, $adminOnlyReports, true)) {
-            requireAdmin($user);
-        }
+        // All reports are accessible to authenticated users (both admin and view roles)
+        // Reports are read-only and view role users should be able to generate them
 
         // Get department filter if provided
         $departmentId = isset($_GET['department_id']) ? $_GET['department_id'] : null;
