@@ -14,6 +14,16 @@ class StaffsPage {
 		this.selectedAllowances = [];
 		this.selectedDeductions = [];
 		this.currentStep = 1;
+
+		// Bind the show archived handler for proper event listener management
+		this.boundShowArchivedHandler = this.handleShowArchivedChange.bind(this);
+	}
+
+	async handleShowArchivedChange(e) {
+		if (e.target && e.target.id === "showArchivedStaffs") {
+			this.showArchived = e.target.checked;
+			await this.loadStaffs();
+		}
 	}
 
 	updateStaffSummary() {
@@ -584,13 +594,12 @@ class StaffsPage {
 			.getElementById("cancelStaffBtn")
 			.addEventListener("click", () => this.closeModal());
 
-		// Show Archived checkbox listener
-		const showArchivedCheckbox = document.getElementById("showArchivedStaffs");
-		if (showArchivedCheckbox) {
-			showArchivedCheckbox.addEventListener("change", async (e) => {
-				this.showArchived = e.target.checked;
-				await this.loadStaffs();
-			});
+		// Show Archived checkbox listener - use event delegation for reliability
+		const mainContent = document.getElementById("mainContent");
+		if (mainContent) {
+			// Remove previous listener to prevent duplicates, then add fresh one
+			mainContent.removeEventListener("change", this.boundShowArchivedHandler);
+			mainContent.addEventListener("change", this.boundShowArchivedHandler);
 		}
 	}
 
