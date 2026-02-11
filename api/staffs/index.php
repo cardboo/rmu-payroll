@@ -226,6 +226,42 @@ try {
             exit();
         }
 
+        // Handle archive/unarchive separately
+        if (isset($data->is_archived)) {
+            try {
+                $query = "UPDATE staffs SET is_archived = :is_archived WHERE id = :id";
+                $stmt = $db->prepare($query);
+                $stmt->bindParam(':id', $data->id);
+                $stmt->bindParam(':is_archived', $data->is_archived);
+                $stmt->execute();
+
+                $action = $data->is_archived ? 'ARCHIVE' : 'RESTORE';
+
+                // Audit log
+                $logQuery = "INSERT INTO audit_logs (user_id, action, table_name, record_id)
+                             VALUES (:user_id, :action, 'staffs', :record_id)";
+                $logStmt = $db->prepare($logQuery);
+                $logStmt->bindParam(':user_id', $user->user_id);
+                $logStmt->bindParam(':action', $action);
+                $logStmt->bindParam(':record_id', $data->id);
+                $logStmt->execute();
+
+                http_response_code(200);
+                echo json_encode([
+                    'success' => true,
+                    'message' => $data->is_archived ? 'Staff archived successfully' : 'Staff restored successfully'
+                ]);
+                exit();
+            } catch (Exception $e) {
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ]);
+                exit();
+            }
+        }
+
         try {
             $db->beginTransaction();
 
