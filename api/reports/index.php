@@ -51,13 +51,20 @@ try {
             $userStmt = $db->query($userQuery);
             $activeUsers = $userStmt->fetch()['total'];
 
-            // Current month payroll
+            // Current month payroll - calculate GHS using currency_rate for accurate totals
             $currentMonth = date('n');
             $currentYear = date('Y');
 
-            $payrollQuery = "SELECT COALESCE(SUM(pe.net_salary_ghs), 0) as total
+            $payrollQuery = "SELECT
+                                COALESCE(SUM(
+                                    CASE
+                                        WHEN s.salary_currency = 'USD' THEN pe.net_salary * pe.currency_rate
+                                        ELSE pe.net_salary
+                                    END
+                                ), 0) as total
                             FROM payroll_entries pe
                             JOIN payroll_periods pp ON pe.payroll_period_id = pp.id
+                            JOIN staffs s ON pe.staff_id = s.id
                             WHERE pp.month = :month AND pp.year = :year";
             $payrollStmt = $db->prepare($payrollQuery);
             $payrollStmt->bindParam(':month', $currentMonth);
