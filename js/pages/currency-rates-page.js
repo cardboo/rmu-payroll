@@ -128,18 +128,31 @@ class CurrencyRatesPage {
 			return;
 		}
 
-		tbody.innerHTML = rates
+		// Sort rates: active first, then by effective_date descending
+		const sortedRates = [...rates].sort((a, b) => {
+			const aActive = a.is_active == 1 || a.is_active === true;
+			const bActive = b.is_active == 1 || b.is_active === true;
+
+			// Active rates first
+			if (aActive && !bActive) return -1;
+			if (!aActive && bActive) return 1;
+
+			// Then by effective_date descending
+			return new Date(b.effective_date) - new Date(a.effective_date);
+		});
+
+		tbody.innerHTML = sortedRates
 			.map((rate) => {
 				// Use is_active from database to determine status
 				const isActive = rate.is_active == 1 || rate.is_active === true;
 
 				return `
-        <tr>
+        <tr style="${isActive ? 'background-color: #e8f5e9;' : ''}">
           <td>${new Date(rate.effective_date).toLocaleDateString()}</td>
           <td><strong>${Number.parseFloat(rate.rate).toFixed(
 						4
 					)}</strong> GHS</td>
-          <td>${rate.set_by_name || "System"}</td>
+          <td>${rate.created_by_name || "System"}</td>
           <td>
             <span class="badge ${
 							isActive ? "badge-success" : "badge-secondary"
@@ -203,6 +216,16 @@ class CurrencyRatesPage {
 
 		const formData = new FormData(form);
 		const data = Object.fromEntries(formData.entries());
+
+		// Validate rate is positive and non-zero
+		const rateValue = parseFloat(data.rate);
+		if (isNaN(rateValue) || rateValue <= 0) {
+			this.crudManager.showMessage(
+				"Exchange rate must be a positive number greater than zero",
+				"error"
+			);
+			return;
+		}
 
 		// Always set new rates as active (this will deactivate all other rates)
 		data.is_active = true;

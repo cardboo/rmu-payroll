@@ -58,6 +58,17 @@ try {
             exit();
         }
 
+        // Validate rate is positive and non-zero
+        $rateValue = floatval($data->rate);
+        if ($rateValue <= 0) {
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Exchange rate must be a positive number greater than zero'
+            ]);
+            exit();
+        }
+
         // Deactivate previous rates
         $deactivateQuery = "UPDATE currency_rates SET is_active = 0";
         $db->query($deactivateQuery);

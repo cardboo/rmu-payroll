@@ -1402,7 +1402,7 @@ function displayPayrollSummary(data) {
   reportContent.innerHTML = `
     <div class="card" style="background-color: #f8fafc; padding: 20px; margin-bottom: 24px;">
       <h4 style="margin-bottom: 16px;">Payroll Summary - ${monthNames[data.period.month - 1]} ${data.period.year}</h4>
-      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Exchange Rate: 1 USD = ${Number.parseFloat(data.currency_rate).toFixed(4)} GHS</p>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">USD staff converted using rate at payroll processing time (see Rate column)</p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
         <div>
           <div style="font-size: 12px; color: #64748b;">Total Staff</div>
@@ -1440,6 +1440,7 @@ function displayPayrollSummary(data) {
             <th style="text-align: right;">Allowances (GHS)</th>
             <th style="text-align: right;">Deductions (GHS)</th>
             <th style="text-align: right;">Net Salary (GHS)</th>
+            <th style="text-align: right;">Rate</th>
             <th>Bank</th>
             <th>Account No.</th>
           </tr>
@@ -1465,6 +1466,10 @@ function displayPayrollSummary(data) {
                 ? `${formatGhs(entry.net_salary_ghs)}<br><span style="font-size: 10px; color: #1976d2;">(${formatUsd(entry.net_salary_original)})</span>`
                 : formatGhs(entry.net_salary_ghs)
 
+              const rateDisplay = isUsd
+                ? Number.parseFloat(entry.currency_rate).toFixed(4)
+                : '-'
+
               return `
             <tr>
               <td>${entry.staff_number}</td>
@@ -1476,6 +1481,7 @@ function displayPayrollSummary(data) {
               <td style="text-align: right; color: #10b981;">${allowancesDisplay}</td>
               <td style="text-align: right; color: #ef4444;">${deductionsDisplay}</td>
               <td style="text-align: right; font-weight: bold; color: #7c3aed;">${netSalaryDisplay}</td>
+              <td style="text-align: right; font-size: 11px; color: #64748b;">${rateDisplay}</td>
               <td>${entry.bank_name || "N/A"}</td>
               <td>${entry.account_number || "N/A"}</td>
             </tr>
@@ -1488,7 +1494,7 @@ function displayPayrollSummary(data) {
             <td style="text-align: right; color: #10b981;">${formatGhs(data.totals.total_allowances_ghs)}</td>
             <td style="text-align: right; color: #ef4444;">${formatGhs(data.totals.total_deductions_ghs)}</td>
             <td style="text-align: right; color: #7c3aed;">${formatGhs(data.totals.net_salary_ghs)}</td>
-            <td colspan="2"></td>
+            <td colspan="3"></td>
           </tr>
         </tfoot>
       </table>
@@ -1520,7 +1526,7 @@ function displayDepartmentPayroll(data) {
   reportContent.innerHTML = `
     <div class="card" style="background-color: #f8fafc; padding: 20px; margin-bottom: 24px;">
       <h4 style="margin-bottom: 16px;">Department Payroll - ${monthNames[data.period.month - 1]} ${data.period.year}</h4>
-      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Exchange Rate: 1 USD = ${Number.parseFloat(data.currency_rate).toFixed(4)} GHS (All amounts converted to GHS)</p>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">USD staff converted using rate recorded at payroll processing time</p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
         <div>
           <div style="font-size: 12px; color: #64748b;">Total Staff</div>
@@ -1682,7 +1688,7 @@ function displayAllowancesDeductions(data) {
   reportContent.innerHTML = `
     <div class="card" style="background-color: #f8fafc; padding: 20px; margin-bottom: 24px;">
       <h4 style="margin-bottom: 16px;">Allowances & Deductions Breakdown - ${monthNames[data.period.month - 1]} ${data.period.year}</h4>
-      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Exchange Rate: 1 USD = ${Number.parseFloat(data.currency_rate).toFixed(4)} GHS (All amounts converted to GHS)</p>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">USD staff converted using rate recorded at payroll processing time</p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
         <div>
           <div style="font-size: 12px; color: #64748b;">Total Allowances (GHS)</div>
@@ -1805,7 +1811,7 @@ function displayGrossSalaryReport(data) {
   reportContent.innerHTML = `
     <div class="card" style="background-color: #f8fafc; padding: 20px; margin-bottom: 24px;">
       <h4 style="margin-bottom: 16px;">Gross Salary Report - ${monthNames[data.period.month - 1]} ${data.period.year}</h4>
-      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Exchange Rate: 1 USD = ${Number.parseFloat(data.currency_rate).toFixed(4)} GHS</p>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">USD staff converted using rate recorded at payroll processing time</p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
         <div>
           <div style="font-size: 12px; color: #64748b;">Total Staff</div>
@@ -1916,7 +1922,7 @@ function displayDeductionsReport(data) {
   reportContent.innerHTML = `
     <div class="card" style="background-color: #f8fafc; padding: 20px; margin-bottom: 24px;">
       <h4 style="margin-bottom: 16px;">Deductions Report - ${monthNames[data.period.month - 1]} ${data.period.year}</h4>
-      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Exchange Rate: 1 USD = ${Number.parseFloat(data.currency_rate).toFixed(4)} GHS</p>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">USD staff converted using rate recorded at payroll processing time</p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
         <div>
           <div style="font-size: 12px; color: #64748b;">Total Staff</div>
@@ -2007,7 +2013,7 @@ function displaySsnitPayeReport(data) {
   reportContent.innerHTML = `
     <div class="card" style="background-color: #f8fafc; padding: 20px; margin-bottom: 24px;">
       <h4 style="margin-bottom: 16px;">SSNIT & PAYE Eligible Staff - ${monthNames[data.period.month - 1]} ${data.period.year}</h4>
-      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Exchange Rate: 1 USD = ${Number.parseFloat(data.currency_rate).toFixed(4)} GHS</p>
+      <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">USD staff converted using rate recorded at payroll processing time</p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
         <div>
           <div style="font-size: 12px; color: #64748b;">Eligible Staff</div>
